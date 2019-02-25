@@ -405,22 +405,20 @@ class Model(Module):
         if not self.is_main:
             raise EmulicaError(self, _("Submodels cannot use this method. Only the top level model can be executed."))
         self.until = until
-        self.clear()
+        self.clear(step)
         if seed:
             self.rng.seed(seed)
         if step:
-            self.sim.startStepping()
-            class Timer(Process):
-                def __init__(self):
-                    Process.__init__(self, 'timer_process', sim = self.sim)
-                    
+            class Timer:
                 def run(self, stepping_delay):
                     """P.E.M. : put the request in the receiver queue and finish"""
                     while True:
-                        yield hold, self, stepping_delay
+                        yield self.sim.timeout(stepping_delay)
             timer_process = Timer()
-            self.sim.activate(timer_process, timer_process.run(1))#TODO get value from emulate arg kw
-            self.sim.simulate(callback = callback, until = until)
+            timer_process.sim = self.sim
+            self.sim.process(timer_process.run(1))#TODO get value from emulate arg kw
+            #TODO: implement callbacks (by using step instead of run ?)
+            self.sim.run(until = until)
         else:
             #print "calling simulate"
             self.sim.run(until = until)
@@ -432,10 +430,14 @@ class Model(Module):
             if (p.is_active()):
                 p.dispose()
     
-    def clear(self):
+    def clear(self, rt = False):
         """Clear the model."""
         #init of SimPy
-        self.sim = simpy.Environment()
+        #TODO: if in real-time mode, initialize environment as simpy.rt.RealtimeEnvironment(factor=1)
+        if rt:
+            self.sim = simpy.rt.RealtimeEnvironment(factor=1)
+        else:
+            self.sim = simpy.Environment()
         #self.sim.initialize()
         #clean products registry
         self.products = dict()
@@ -452,8 +454,9 @@ class Model(Module):
         """Stop emulation / simulation"""
         if not self.is_main:
             raise EmulicaError(self, _("Submodels cannot use this method. Only the top level model can be executed."))
-        logger.info(_("simulation stopped at t={0}").format(self.sim.now()))
-        stopSimulation()
+        logger.info(_("simulation stopped at t={0}").format(self.sim.now))
+        #TODO: stop simulation
+        
     
     def next_pid(self):
         """Return the next available product ID (int)"""
@@ -523,9 +526,7 @@ class Model(Module):
     
     def insert_request(self, request):
         """insert the request in the model"""
-        class Dispatcher(Process):
-            def __init__(self):
-                Process.__init__(self, name = 'dispatcher_process', sim = self.sim)
+        class Dispatcher:
             
             def run(self, request, receiver):
                 """P.E.M. : put the request in the receiver queue and finish"""
@@ -533,7 +534,7 @@ class Model(Module):
         logger.info(_("inserting request for module {0}".format(request.who)))
         receiver = self.get_module(request.who)
         insert_process = Dispatcher()
-        self.sim.activate(insert_process, insert_process.run(request, receiver))
+        self.sim.process(insert_process.run(request, receiver))
         
     def initialize(self):
         """Activate the control of the model, and initialize it as a module."""
@@ -1106,7 +1107,7 @@ class CreateAct(Actuator):
                 if request_cmd.what == CreateAct.produce_keyword:
                     for ev in module.properties['destination'].put_product(prod):
                         yield ev
-                    report = Report(module.fullname(), 'create-done')
+                    report = Report(module.fullname(), 'create-done', date = self.env.now)
                     yield module.report_socket.put(report)
 
 class DisposeAct(Actuator):
@@ -1159,7 +1160,7 @@ class DisposeAct(Actuator):
                     prod.dispose()
                     module.properties['source'].lock.release(lock_rq)
                     #print "lock released"
-                    report = Report(module.fullname(), 'dispose-done')
+                    report = Report(module.fullname(), 'dispose-done', date = self.env.now)
                     yield module.report_socket.put(report)
                     module.emit(Module.STATE_CHANGE_SIGNAL, None)
 
@@ -1241,7 +1242,7 @@ class SpaceAct(Actuator):
             module.record_end('setup')
             module.program = new_program
             if not implicit:
-                report = Report(module.fullname(), 'setup-done', params={'program':module.program})
+                report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
                 yield put, self, module.report_socket, [report]
 
         def __produce(self, module):
@@ -1264,7 +1265,7 @@ class SpaceAct(Actuator):
             #unlock source
             source.lock.release(src_lock_rq)
             #report state change
-            report = Report(module.fullname(), 'busy', params={'program':module.program})
+            report = Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)
             yield module.report_socket.put(report)
             #transportation delay
             #multiplied by the degradation ration
@@ -1284,7 +1285,7 @@ class SpaceAct(Actuator):
             module.resource.release(resource_rq)
             module.record_end(module.program)
             #report state change
-            report = Report(module.fullname(), 'idle', params={'program': module.program})
+            report = Report(module.fullname(), 'idle', params={'program': module.program}, date = self.env.now)
             yield module.report_socket.put(report)
         
         def __hold(self, time, module):
@@ -1381,7 +1382,7 @@ class ShapeAct(Actuator):
             module.record_end('setup')
             #report
             if not implicit:
-                report = Report(module.fullname(), 'setup-done', params={'program':module.program})
+                report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
                 yield module.report_socket.put(report)
 
         def __produce(self, module):
@@ -1401,7 +1402,7 @@ class ShapeAct(Actuator):
             yield holder_rq
             products = module.properties['holder'].get_products()
             #report busy
-            report = Report(module.fullname(), 'busy', params={'program':module.program})
+            report = Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)
             yield module.report_socket.put(report)
             product = products[0]
             if len(products) > 1:
@@ -1437,7 +1438,7 @@ class ShapeAct(Actuator):
             #release own resource, record end
             module.resource.release(resource_rq)
             module.record_end(module.program)
-            report = Report(module.fullname(), 'idle', params={'program':module.program})
+            report = Report(module.fullname(), 'idle', params={'program':module.program}, date = self.env.now)
             yield module.report_socket.put(report)
             
         def __hold(self, time, module):
@@ -1540,7 +1541,7 @@ class AssembleAct(Actuator):
             #report
             logger.debug(_("finished setup on module {0}").format(module. name))
             if not implicit:
-                report = Report(module.fullname(), 'setup-done', params={'program':module.program})
+                report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
                 yield put, self, module.report_socket, [report]
 
         def __produce(self, module):
@@ -1561,7 +1562,7 @@ class AssembleAct(Actuator):
             assemblee.record_position(module.properties['holder'].fullname())
             yield release, self, source.lock
             #send a busy report
-            yield put, self, module.report_socket, [Report(module.fullname(), 'busy', params={'program':module.program})]
+            yield put, self, module.report_socket, [Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)]
             time = program.time()
             time /= module.performance_ratio
             #TODO: manage physical attribute
@@ -1580,7 +1581,7 @@ class AssembleAct(Actuator):
             yield release, self, module.resource
             module.record_end(module.program)
             #send a report
-            yield put, self, module.report_socket, [Report(module.fullname(), 'idle', params={'program':module.program})]
+            yield put, self, module.report_socket, [Report(module.fullname(), 'idle', params={'program':module.program}, date = self.env.now)]
     
         def __hold(self, time, module):
             old_ratio = module.performance_ratio
@@ -1673,7 +1674,7 @@ class DisassembleAct(Actuator):
             module.record_end('setup')
             #report
             if not implicit:
-                report = Report(module.fullname(), 'setup-done', params={'program':module.program})
+                report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
                 yield put, self, module.report_socket, [report]
 
         def __produce(self, module):
@@ -1715,7 +1716,7 @@ class DisassembleAct(Actuator):
             yield release, self, module.resource
             module.record_end(module.program)
             #send a report
-            yield put, self, module.report_socket, [Report(module.fullname(), 'idle', params={'program':module.program})]
+            yield put, self, module.report_socket, [Report(module.fullname(), 'idle', params={'program':module.program}, date = self.env.now)]
 
         def __hold(self, time, module):
             old_ratio = module.performance_ratio
@@ -1978,7 +1979,7 @@ class PushObserver(Module):
              
         def response(self, product_list):
             """Return a list of reports to send"""
-            report = Report(self.observer.name, self.observer.properties['event_name'], location = self.observer.properties['holder'].name)
+            report = Report(self.observer.name, self.observer.properties['event_name'], location = self.observer.properties['holder'].name, date = self.observer.get_sim().now)
             if self.observer.properties['observe_type']:
                 report.how['productType'] = self.__prod.product_type
             if self.observer['identify']:
@@ -2131,7 +2132,7 @@ class PullObserver(Module):
              
         def response(self, product_list):
             """Return one report that give for each product its ID, type and position"""
-            r = Report(self.observer.name, self.observer['event_name'], location = self.observer['holder'].name)
+            r = Report(self.observer.name, self.observer['event_name'], location = self.observer['holder'].name, date = self.env.now)
             id_by_position = dict()
             type_by_position = dict()
             #print now(), [ (pos, product.pid) for (pos, product) in product_list.positions()]

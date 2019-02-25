@@ -16,7 +16,7 @@
 """
 This module enable running simulation/emulation model with various time advances
 strategies (discrete-events, real-time, hybrid). It also support running emulation
-model accros a network.
+model across a network.
 """
 
 
@@ -236,11 +236,12 @@ class EmulationServer:
     def initialize_controler(self):
         """Make the emulation thread ready to run"""
         #add callback to generate emulator reports, using the ReportSource class
-        self.factory.controler.model.register_control(ReportSource, 'run', (self.factory.controler.model, self.__send_report))
+        self.factory.controler.model.register_control(ReportSource, pem_args = (self.factory.controler.model, self.__send_report))
         self.__send_report(emulation.Report(NAME, 'ready'))
     
     def __send_report(self, report):
         """Send a report to the clients"""
+        print report
         message = emuML.write_report(report)
         for client in self.factory.clients:
             logging.info(_("sending report {0}").format(message))
@@ -252,14 +253,17 @@ class ReportSource:
     """This simPy Process is used to get Reports from emulation modules."""
     def run(self, model, send):
         """PEM : create a Store, and attach it to every module in the model"""
-        store = emulation.Store()
+        r = model.new_report_socket()
         for module in model.modules.values():
-            module.attach_report_socket(store)
+            module.attach_report_socket(r)
             logging.info(_("attaching reports store to module {0}").format(module.name))
         while True:
-            yield emulation.get, self, store, 1
-            report = self.got[0]
-            send(report)
+            report = yield r.get()
+            #TODO: why two different interface ??
+            if '__len__' in dir(report):
+                send(report[0])
+            else:
+                send(report)
 
 
 class EmulationProtocol(LineReceiver):
