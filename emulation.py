@@ -1957,6 +1957,9 @@ class PushObserver(Module):
         Attributes:
             obs_type -- True if products type should be included in reports
             identify -- True if products ID should be included in reports
+            obs_absence -- True if this observer should send report when the product leaves the 
+                observed zone (i.e. falling edge). In this case the events will have a parameter
+                "present" with a boolean value.
         """
         def __init__(self, observer):
             self.__prod = None
@@ -1973,7 +1976,6 @@ class PushObserver(Module):
                     return True  
             else:
                 logger.info(_("no products ready at {time} ({internal_state})").format(time = self.observer.current_time(),internal_state = product_list))
-                
                 self.__prod = None
                 return False
              
@@ -1984,10 +1986,12 @@ class PushObserver(Module):
                 report.how['productType'] = self.__prod.product_type
             if self.observer['identify']:
                 report.how['productID'] = self.__prod.pid
+            if self.observer['observe_absence']:
+                report.how['present'] = True
             return [report]
     
     
-    def __init__(self, model, name, event_name = None, observe_type = True, identify = False, holder = None):
+    def __init__(self, model, name, event_name = None, observe_type = True, identify = False, holder = None, observe_absence = False):
         """Create a new instance of an Observer
         
         Observers take a list of products as inputs (from a product Holder). 
@@ -1999,6 +2003,9 @@ class PushObserver(Module):
             event_name -- the name of the event which is raised (default = None, then the name of the observer is used instead)
             observe_type -- True if products type should be included in reports (default = True)
             identify -- True if products ID should be included in reports (default = False)
+            observe_absence -- True if this observer should send report when the product leaves the 
+                observed zone (i.e. falling edge). In this case the events will have a parameter
+                "present" with a boolean value. (default = False)
             
         """
         
@@ -2013,6 +2020,7 @@ class PushObserver(Module):
             holder.observers.append(self)
         self.properties.add_with_display('identify', properties.Display.BOOL_VALUE, identify, _("Observe identity"))
         self.properties.add_with_display('observe_type', properties.Display.BOOL_VALUE, observe_type, _("Observe Type"))
+        self.properties.add_with_display('observe_absence', properties.Display.BOOL_VALUE, observe_absence, _("Observe Absence"))
         self.logic = PushObserver.FirstProductLogic(self)
         self.product_list = HolderState(self)
         self.model.register_emulation_module(self)
@@ -2031,6 +2039,7 @@ class PushObserver(Module):
             self.env = sim
             self.__reactivate = self.env.event()
             self.reactivate_dates = []
+            self.last_report = None
         
         def __wait_and_reactivate(self, delay):
             delayed = self.env.now + delay
@@ -2065,6 +2074,12 @@ class PushObserver(Module):
                 
                 if not module.logic.trigger(module.product_list):
                     logger.info(_("t={t}: product not ready").format(t=self.env.now))
+                    if self.last_report is not None:
+                        #send message about product no longer present
+                        rp = self.last_report
+                        rp.how['present'] = False
+                        yield module.report_socket.put([rp])
+                        self.last_report = None
                     if (len(module.product_list)):
                         #schedule event when product is ready ?
                         #TODO: compute ready date
@@ -2076,6 +2091,8 @@ class PushObserver(Module):
                 else:
                     module.emit(Module.STATE_CHANGE_SIGNAL, True)
                     reports = module.logic.response(module.product_list)
+                    if module.properties['observe_absence']:
+                        self.last_report = reports[0]
                     logger.info(_("t={0}: observation done!").format(self.env.now))
                     yield module.report_socket.put(reports)
                     
