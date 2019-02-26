@@ -744,9 +744,12 @@ def write_report(report):
     from xml.etree.ElementTree import tostring
     root = Element("report")
     
-    for attr in ['who', 'what', 'when', 'where', 'why']:
+    for attr in ['who', 'what', 'where', 'why']:
         elt = SubElement(root, attr)
         elt.text = str(getattr(report, attr))
+    if report.when != None:
+        elt = SubElement(root, 'when')
+        elt.text = str(report.when)
     how_elt = SubElement(root, 'how')
     for (name, value) in report.how.items():
         elt = SubElement(how_elt, 'element')
