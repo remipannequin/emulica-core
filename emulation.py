@@ -530,7 +530,7 @@ class Model(Module):
             
             def run(self, request, receiver):
                 """P.E.M. : put the request in the receiver queue and finish"""
-                yield put, self, receiver.request_socket, [request]
+                yield receiver.request_socket.put(request)
         logger.info(_("inserting request for module {0}".format(request.who)))
         receiver = self.get_module(request.who)
         insert_process = Dispatcher()
