@@ -435,7 +435,7 @@ class Model(Module):
         #init of SimPy
         #TODO: if in real-time mode, initialize environment as simpy.rt.RealtimeEnvironment(factor=1)
         if rt:
-            self.sim = simpy.rt.RealtimeEnvironment(factor=1)
+            self.sim = simpy.rt.RealtimeEnvironment(factor=1, strict=False)
         else:
             self.sim = simpy.Environment()
         #self.sim.initialize()
