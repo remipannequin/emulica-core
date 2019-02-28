@@ -673,7 +673,7 @@ def parse_request(message):
     if not elt == None:
         for e in elt.findall("element"):
             try:
-                value = eval(e.text)
+                value = e.text
             except (SyntaxError, NameError):
                 value = e.text
             rq.how[e.attrib["name"]] = value
