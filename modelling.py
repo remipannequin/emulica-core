@@ -15,7 +15,7 @@
 ### END LICENSE
 """
 emulica is a graphical application to the emulica framework, build using GTK. This (sub) module 
-contains functions that pertainng to modelling.
+contains functions that pertaining to modelling.
 """
 
 import gettext
