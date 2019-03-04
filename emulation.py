@@ -539,7 +539,6 @@ class Model(Module):
     def initialize(self):
         """Activate the control of the model, and initialize it as a module."""
         #initialize report and request queues by calling Module.initialize(self)
-        
         Module.initialize(self)
         #activate control processes
         for (control_class, pem, args) in self.control_classes:
@@ -548,7 +547,7 @@ class Model(Module):
             pem = getattr(process, pem)
             process.sim = self.get_sim()
             #print self.sim, process, pem, args
-            self.sim.process(pem(*args))
+            self.get_sim().process(pem(*args))
             self.control_system.append(process)
         
     def new_report_socket(self):
@@ -857,7 +856,6 @@ class Actuator(Module):
         resource -- the SimPy Resource associated with this actuator
         trace -- execution trace. A list of tupple of the form '(begin, end, state)'
         performance_ratio -- a positive float that represent the performance ratio
-        
     """
     def __init__(self, model, name):
         """Create an Actuator."""
@@ -865,6 +863,7 @@ class Actuator(Module):
         self.trace = list()
         self.__rec = list()
         self.performance_ratio = 1.
+        self.must_interrupt = False
         
     def record_begin(self, state):
         """Record resource operation as a list of tupples (start, end, program). 
@@ -902,17 +901,17 @@ class Actuator(Module):
         self.resource = simpy.Resource(env = self.get_sim())
         #ModuleProcess is defined in sub-classes
         self.process = self.ModuleProcess(sim = self.get_sim())
-        self.get_sim().process(self.process.run(self))
+        self.action = self.get_sim().process(self.process.run(self))
         self.emit(Module.STATE_CHANGE_SIGNAL, 'idle')
     
     def degrade(self, ratio, caller):
         """Degrade or restore performance of an actuator, by multipling its 
         performance ratio by ratio. This method will check if the actuator is 
         currently running, and if so, cancel it."""
-        self.performance_ratio -= ratio
-        if self.resource.n == 0:
-            caller.interrupt(self.process)
-                   
+        self.performance_ratio = max(0.0, self.performance_ratio - ratio)
+        if self.must_interrupt:
+            self.action.interrupt()
+    
     def add_program(self, name, delay, prog_transform = None, prog_resources = []):
         """Add a program to the actuator's program_table.
         If the actuator is a createAct or a DisposeAct, that don't have program 
@@ -983,7 +982,7 @@ class Failure(Module):
         """Make a module ready to be simulated"""
         Module.initialize(self)
         self.process = self.ModuleProcess(sim = self.get_sim())
-        self.get_sim().process(self.process.run(self))
+        self.action = self.get_sim().process(self.process.run(self))
     
     class ModuleProcess:
         
@@ -999,15 +998,11 @@ class Failure(Module):
                 #preempt resource, record failure
                 degradation = module.properties['degradation']
                 mttr = module.get_mttr()
-                resource_rq = []
                 for act in module.properties['process_list']:
                     if degradation > 0.:
-                        act.degrade(degradation, self)
+                        act.degrade(degradation, module)
                     else:
-                        ##TODO: what happen if two failures strike the same resource at the same time ??
-                        rq = act.resource.request()
-                        resource_rq.append(rq)
-                        yield rq
+                        act.degrade(1, module)
                     #report failure
                     report = Report(module.fullname(), 'failure-begin', params={'mttr': mttr, 'degradation': degradation})
                     yield module.report_socket.put(report)
@@ -1017,9 +1012,9 @@ class Failure(Module):
                 #release resource, record end
                 for act in module.properties['process_list']:
                     if degradation > 0:
-                        act.degrade(-degradation, self)
+                        act.degrade(-degradation, module)
                     else:
-                        act.resource.release(resource_rq.pop())
+                        act.degrade(-1, module)
                     #report failure end
                     report = Report(module.fullname(), 'failure-end', params={'mttr': mttr, 'degradation': degradation})
                     yield module.report_socket.put(report)
@@ -1223,9 +1218,65 @@ class SpaceAct(Actuator):
                         yield yield_elt
                 ##if requested action is 'produce', perform setup if needed, and the transform product
                 if request_cmd.what == SpaceAct.produce_keyword:
-                    for yield_elt in self.__produce(module):
-                        yield yield_elt
-    
+                    #print "produce on space act"
+                    #retrieve one product from source holder (according to prog)
+                    source = module.properties['program_table'][module.program].transform['source']
+                    #request own resource (to model failure)
+                    resource_rq = module.resource.request()
+                    yield resource_rq
+                    #print "resource requested"
+                    module.record_begin(module.program)
+                    #lock source holder
+                    src_lock_rq = source.lock.request()
+                    yield src_lock_rq
+                    #fetch product from source
+                    product = source.fetch_product()
+                    #record product position (space name is the name of this actuator)
+                    product.record_position(module.fullname())
+                    #unlock source
+                    source.lock.release(src_lock_rq)
+                    #report state change
+                    report = Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)
+                    yield module.report_socket.put(report)
+                    #transportation delay
+                    #multiplied by the degradation ration
+                    time = module.properties['program_table'][module.program].time(product)
+                    time /= module.performance_ratio
+                    #hold (with interruption)
+                    self.must_interrupt = True
+                    old_ratio = module.performance_ratio
+                    left  = time
+                    while left > 0:
+                        try:
+                            if module.performance_ratio > 0:
+                                #performance is degraded
+                                start = self.env.now
+                                yield self.env.timeout(left / module.performance_ratio)
+                                left = left - module.performance_ratio * left
+                            else:
+                                #resource is failed : loop on wait indefinitely (until interruption)
+                                yield self.env.timeout(1)
+                            #The hold statement returns : the production time has completely elapsed
+                        except simpy.Interrupt:
+                            # process has been interrupted by a failure :  modification of performance ratio
+                            left = left - old_ratio * (self.env.now - start)
+                            old_ratio = module.performance_ratio
+                    self.must_interrupt = False
+                    #release resources and record end
+                    ##put product in destination holder (according to prog)
+                    dest = module.properties['program_table'][module.program].transform['destination']
+                    #no need to lock destination (done in put_product)
+                    #put product in destination holder
+                    for ev in dest.put_product(product):
+                        yield ev
+                    #release own resouce
+                    module.resource.release(resource_rq)
+                    module.record_end(module.program)
+                    #report state change
+                    report = Report(module.fullname(), 'idle', params={'program': module.program}, date = self.env.now)
+                    yield module.report_socket.put(report)
+        
+        
         def __setup(self, new_program, module, implicit):
             """Generate SimPy signals to execute a setup. If implicit is true, the setup is *not* reported"""
             if not new_program in module.properties['program_table'].keys():
@@ -1235,71 +1286,14 @@ class SpaceAct(Actuator):
             resource_rq = module.resource.request()
             yield resource_rq
             module.record_begin('setup')
-            delay = setup / module.performance_ratio
-            for elt in self.__hold(delay, module):
-                yield elt
+            delay = setup
+            yield self.env.timeout(delay)
             module.resource.release(resource_rq)
             module.record_end('setup')
             module.program = new_program
             if not implicit:
                 report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
-                yield put, self, module.report_socket, [report]
-
-        def __produce(self, module):
-            """Generate SimPy signals to execute a setup"""
-            #print "produce on space act"
-            ##retrieve one product from source holder (according to prog)
-            source = module.properties['program_table'][module.program].transform['source']
-            #request own resource (to model failure)
-            resource_rq = module.resource.request()
-            yield resource_rq
-            #print "resource requested"
-            module.record_begin(module.program)
-            #lock source holder
-            src_lock_rq = source.lock.request()
-            yield src_lock_rq
-            #fetch product from source
-            product = source.fetch_product()
-            #record product position (space name is the name of this actuator)
-            product.record_position(module.fullname())
-            #unlock source
-            source.lock.release(src_lock_rq)
-            #report state change
-            report = Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)
-            yield module.report_socket.put(report)
-            #transportation delay
-            #multiplied by the degradation ration
-            time = module.properties['program_table'][module.program].time(product)
-            time /= module.performance_ratio
-            #hold (with interruption)
-            for elt in self.__hold(time, module):
-                yield elt
-            #release resources and record end
-            ##put product in destination holder (according to prog)
-            dest = module.properties['program_table'][module.program].transform['destination']
-            #no need to lock destination (done in put_product)
-            #put product in destination holder
-            for ev in dest.put_product(product):
-                yield ev
-            #release own resouce
-            module.resource.release(resource_rq)
-            module.record_end(module.program)
-            #report state change
-            report = Report(module.fullname(), 'idle', params={'program': module.program}, date = self.env.now)
-            yield module.report_socket.put(report)
-        
-        def __hold(self, time, module):
-            old_ratio = module.performance_ratio
-            while time != 0:
-                yield self.env.timeout(time)
-                #The hold statement returns : either the production time has 
-                #completely elapsed, or it has been interrupted by a failure (cancel called)
-                #TODO
-                #if (self.interrupted()):
-                #    time = self.interruptLeft * old_ratio / module.performance_ratio
-                #    old_ratio = module.performance_ratio
-                #else:
-                time = 0
+                yield module.report_socket.put(report)
 
 
 class ShapeAct(Actuator):
@@ -1359,100 +1353,120 @@ class ShapeAct(Actuator):
                 if request_cmd.what == 'setup' or (request_cmd.what == ShapeAct.produce_keyword and module.program != new_program):
                     logger.info(_("module {name} doing setup at {t}").format(name = module.name, t = self.env.now))
                     implicit = (module.program != new_program)
-                    for yield_elt in self.__setup(new_program, module, implicit):
-                        yield yield_elt
+                    setup = module.properties['setup'].get(module.program, new_program)
+                    #request own resource, and record begining of operation
+                    resource_rq = module.resource.request()
+                    yield resource_rq
+                    module.record_begin('setup')
+                    #setup delay
+                    delay = setup
+                    #hold (with interruption)
+                    module.must_interrupt = True
+                    old_ratio = module.performance_ratio
+                    left  = delay
+                    while left > 0:
+                        try:
+                            if module.performance_ratio > 0:
+                                #performance is degraded
+                                timeout_start = self.env.now
+                                yield self.env.timeout(left / module.performance_ratio)
+                                left = left - module.performance_ratio * left
+                            else:
+                                #resource is failed : loop on wait indefinitely (until interruption)
+                                yield self.env.timeout(1)
+                            #The hold statement returns : the production time has completely elapsed
+                        except simpy.Interrupt:
+                            # process has been interrupted by a failure :  modification of performance ratio
+                            left = left - old_ratio * (self.env.now - timeout_start)
+                            old_ratio = module.performance_ratio
+                    module.must_interrupt = False
+                    module.program = new_program
+                    #release own resource, record end
+                    module.resource.release(resource_rq)
+                    module.record_end('setup')
+                    #report if not implicit
+                    if not implicit:
+                        report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
+                        yield module.report_socket.put(report)
+                
+                
                 if request_cmd.what == ShapeAct.produce_keyword:
-                    for yield_elt in self.__produce(module):
-                        yield yield_elt
+                    #request own resource, record begining
+                    resource_rq = module.resource.request()
+                    yield resource_rq
+                    #request program's resources
+                    #TODO: request a resource allocation lock before, to avoid interlocking
+                    prog_res_rq = []
+                    for res in module.properties['program_table'][module.program].resources:
+                        rq = res.request()
+                        prog_res_rq.append(rq)
+                        yield rq
+                    module.record_begin(module.program)
+                    #lock the workplace holder
+                    holder_rq = module.properties['holder'].lock.request()
+                    yield holder_rq
+                    products = module.properties['holder'].get_products()
+                    #report busy
+                    report = Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)
+                    yield module.report_socket.put(report)
+                    product = products[0]
+                    if len(products) > 1:
+                        logger.warning(_("cannot treat more than one product at once"))
+                    time = module.properties['program_table'][module.program].time(product)
+                    time /= module.performance_ratio
+                    if 'change' in module.properties['program_table'][module.program].transform:
+                        #TODO: verify when setting changeset that it is not None !
+                        changeset = (module.properties['program_table'][module.program].transform['change'] or {})
+                        
+                        for (prop, value) in changeset.items():
+                            if prop in product.properties.keys():
+                                if type(value) == str:
+                                    product.properties.eval_and_set(prop, value)
+                                else:
+                                    product.properties[prop] = value
+                            else:
+                                logger.warning(_("could not find physical property {0}").format(prop))
+                    #record start
+                    start = self.env.now
+                    #hold (with interruption)
+                    module.must_interrupt = True
+                    old_ratio = module.performance_ratio
+                    left  = time
+                    while left > 0:
+                        try:
+                            if module.performance_ratio > 0:
+                                #performance is degraded
+                                timeout_start = self.env.now
+                                yield self.env.timeout(left / module.performance_ratio)
+                                left = left - module.performance_ratio * left
+                            else:
+                                #resource is failed : loop on wait indefinitely (until interruption)
+                                yield self.env.timeout(1)
+                            #The hold statement returns : the production time has completely elapsed
+                        except simpy.Interrupt:
+                            # process has been interrupted by a failure :  modification of performance ratio
+                            left = left - old_ratio * (self.env.now - timeout_start)
+                            old_ratio = module.performance_ratio
+                    module.must_interrupt = False
+                    #release resources and record end
+                    for p in products:
+                        p.record_transformation(start, self.env.now, module.fullname(), module.program)
+                        #transformation is recorded at the *end* of the transformation period, end specify both its start and end date
+                    #unlock holder
+                    module.properties['holder'].lock.release(holder_rq)
+                    #release program's resources
+                    for res in module.properties['program_table'][module.program].resources:
+                        res.release(prog_res_rq)
+                    #release own resource, record end
+                    module.resource.release(resource_rq)
+                    module.record_end(module.program)
+                    report = Report(module.fullname(), 'idle', params={'program':module.program}, date = self.env.now)
+                    yield module.report_socket.put(report)
         
         def __setup(self, new_program, module, implicit):
             """Generate SimPy signals to execute a setup. If implicit is true, the setup is *not* reported"""
-            setup = module.properties['setup'].get(module.program, new_program)
-            #request own resource, and record begining of operation
-            resource_rq = module.resource.request()
-            yield resource_rq
-            module.record_begin('setup')
-            #setup delay
-            delay = setup / module.performance_ratio
-            for elt in self.__hold(delay, module):
-                yield elt
-            module.program = new_program
-            #release own resource, record end
-            module.resource.release(resource_rq)
-            module.record_end('setup')
-            #report
-            if not implicit:
-                report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
-                yield module.report_socket.put(report)
-
-        def __produce(self, module):
-            #request own resource, record begining
-            resource_rq = module.resource.request()
-            yield resource_rq
-            #request program's resources
-            #TODO: request a resource allocation lock before, to avoid interlocking
-            prog_res_rq = []
-            for res in module.properties['program_table'][module.program].resources:
-                rq = res.request()
-                prog_res_rq.append(rq)
-                yield rq
-            module.record_begin(module.program)
-            #lock the workplace holder
-            holder_rq = module.properties['holder'].lock.request()
-            yield holder_rq
-            products = module.properties['holder'].get_products()
-            #report busy
-            report = Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)
-            yield module.report_socket.put(report)
-            product = products[0]
-            if len(products) > 1:
-                logger.warning(_("cannot treat more than one product at once"))
-            time = module.properties['program_table'][module.program].time(product)
-            time /= module.performance_ratio
-            if 'change' in module.properties['program_table'][module.program].transform:
-                #TODO: verify when setting changeset that it is not None !
-                changeset = (module.properties['program_table'][module.program].transform['change'] or {})
-                
-                for (prop, value) in changeset.items():
-                    if prop in product.properties.keys():
-                        if type(value) == str:
-                            product.properties.eval_and_set(prop, value)
-                        else:
-                            product.properties[prop] = value
-                    else:
-                        logger.warning(_("could not find physical property {0}").format(prop))
-            #record start
-            start = self.env.now
-            #hold (with interruption)
-            for elt in self.__hold(time, module):
-                yield elt
-            #release resources and record end
-            for p in products:
-                p.record_transformation(start, self.env.now, module.fullname(), module.program)
-                #transformation is recorded at the *end* of the transformation period, end specify both its start and end date
-            #unlock holder
-            module.properties['holder'].lock.release(holder_rq)
-            #release program's resources
-            for res in module.properties['program_table'][module.program].resources:
-                res.release(prog_res_rq)
-            #release own resource, record end
-            module.resource.release(resource_rq)
-            module.record_end(module.program)
-            report = Report(module.fullname(), 'idle', params={'program':module.program}, date = self.env.now)
-            yield module.report_socket.put(report)
             
-        def __hold(self, time, module):
-            old_ratio = module.performance_ratio
-            while time != 0:
-                yield self.env.timeout(time)
-                #The hold statement returns : either the production time has 
-                #completely elapsed, or it has been interrupted by a failure (cancel called)
-                #TODO
-                #if (self.interrupted()):
-                #    time = self.interruptLeft * old_ratio / module.performance_ratio
-                #    old_ratio = module.performance_ratio
-                #else:
-                time = 0
+
 
 class AssembleAct(Actuator):
     """This module assemble two products : one that is already on its 'assembling holder'
@@ -1491,19 +1505,21 @@ class AssembleAct(Actuator):
         self.model.register_emulation_module(self)
   
     class ModuleProcess:
+        def __init__(self, sim):
+            self.env = sim
+        
         def run(self, module):
             """Process Execution Method"""
             if module.properties['holder'] == None:
                 raise EmulicaError(module, _("This module has not be properly initialized: holder has not been set"))
             logger.debug(_("starting assembleAct {0}").format(module.name))
             while True:
-                yield get, self, module.request_socket, 1
-                request_cmd = self.got[0]
+                request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
-                now = self.model.current_time()
+                now = module.model.current_time()
                 if request_cmd.when > now:
                     logger.debug(_("module {name} waiting {time}...").format(name = module.name, delay = request_cmd.when - now()))
-                    yield hold, self, request_cmd.when - now
+                    yield self.env.timeout(request_cmd.when - now)
                 ##if requested action is 'setup', perform setup
                 if request_cmd.how.has_key('program'):
                     new_program = request_cmd.how['program']
@@ -1511,24 +1527,25 @@ class AssembleAct(Actuator):
                     ##TODO: exception if in setup mode !
                     new_program = module.program
                 if request_cmd.what == 'setup' or (request_cmd.what == AssembleAct.produce_keyword and module.program != new_program):
-                    now = self.model.current_time()
+                    now = module.model.current_time()
                     logger.info(_("module {name} doing setup at {t}").format(name = module.name, t = now))
                     implicit = (module.program != new_program)
                     logger.info(_("module {name} doing setup at {t}").format(name = module.name, t = now))
                     for yield_elt in self.__setup(new_program, module, implicit):
                         yield yield_elt
                 if request_cmd.what == AssembleAct.produce_keyword:
-                    logger.info(_("module {name} doing assembly at {t}").format(name = module.name, t = self.model.current_time()))
+                    logger.info(_("module {name} doing assembly at {t}").format(name = module.name, t = module.model.current_time()))
                     for yield_elt in self.__produce(module):
                         yield yield_elt
-                logger.info(_("module {name} ready at {t}").format(name = module.name, t = self.model.current_time()))
+                logger.info(_("module {name} ready at {t}").format(name = module.name, t = module.model.current_time()))
     
         def __setup(self, new_program, module, implicit):
             """Generate SimPy signals to execute a setup. If implicit is true, the setup is *not* reported"""
             logger.debug(_("begining setup on module {0}").format(module. name))
             setup = module.properties['setup'].get(module.program, new_program)
             #request own resource, and record begining of operation
-            yield request, self, module.resource
+            resource_rq = module.resource.request()
+            yield resource_rq
             module.record_begin('setup')
             #setup delay
             delay = setup / module.performance_ratio
@@ -1536,33 +1553,36 @@ class AssembleAct(Actuator):
                 yield elt
             module.program = new_program
             #release own resource, record end
-            yield release, self, module.resource
+            module.resource.release(resource_rq)
             module.record_end('setup')
             #report
             logger.debug(_("finished setup on module {0}").format(module. name))
             if not implicit:
                 report = Report(module.fullname(), 'setup-done', params={'program':module.program}, date = self.env.now)
-                yield put, self, module.report_socket, [report]
+                yield module.report_socket.put([report])
 
         def __produce(self, module):
             #request own resource, record begining
             logger.debug(_("begining assembly on module {0}").format(module. name))
-            yield request, self, module.resource
+            resource_rq = module.resource.request()
+            yield resource_rq
             module.record_begin(module.program)
             #first lock 'master' product
             logger.debug(_("locking holder on module {0}").format(module. name))
-            yield request, self, module.properties['holder'].lock
+            holder_rq = module.properties['holder'].lock.request()
+            yield holder_rq
             masters = module.properties['holder'].get_products()
             #then fetch product to assemble from holder
             logger.debug(_("fetching products to assemble in module {0}").format(module. name))
             program = module.properties['program_table'][module.program]
             source = program.transform['source']
-            yield request, self, source.lock
+            source_rq = source.lock.request()
+            yield source_rq
             assemblee = source.fetch_product()
             assemblee.record_position(module.properties['holder'].fullname())
-            yield release, self, source.lock
+            source.lock.release(source_rq)
             #send a busy report
-            yield put, self, module.report_socket, [Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)]
+            yield module.report_socket.put([Report(module.fullname(), 'busy', params={'program':module.program}, date = self.env.now)])
             time = program.time()
             time /= module.performance_ratio
             #TODO: manage physical attribute
@@ -1577,23 +1597,24 @@ class AssembleAct(Actuator):
                 logger.warning(_("assembling with an empty product"))
                 for ev in module.properties['holder'].put_product(assemblee):
                     yield ev
-            yield release, self, module.properties['holder'].lock
-            yield release, self, module.resource
+            module.properties['holder'].lock.release(holder_rq)
+            module.resource.release(resource_rq)
             module.record_end(module.program)
             #send a report
-            yield put, self, module.report_socket, [Report(module.fullname(), 'idle', params={'program':module.program}, date = self.env.now)]
+            yield module.report_socket.put([Report(module.fullname(), 'idle', params={'program':module.program}, date = self.env.now)])
     
         def __hold(self, time, module):
             old_ratio = module.performance_ratio
             while time != 0:
-                yield hold, self, time
+                yield self.env.timeout(time)
                 #The hold statement returns : either the production time has 
                 #completely elapsed, or it has been interrupted by a failure (cancel called)
-                if (self.interrupted()):
-                    time = self.interruptLeft * old_ratio / module.performance_ratio
-                    old_ratio = module.performance_ratio
-                else:
-                    time = 0
+                #TODO
+                #if (self.interrupted()):
+                #    time = self.interruptLeft * old_ratio / module.performance_ratio
+                #    old_ratio = module.performance_ratio
+                #else:
+                time = 0
                     
     
 class DisassembleAct(Actuator):
@@ -1988,7 +2009,7 @@ class PushObserver(Module):
                 report.how['productID'] = self.__prod.pid
             if self.observer['observe_absence']:
                 report.how['present'] = True
-            return [report]
+            return report
     
     
     def __init__(self, model, name, event_name = None, observe_type = True, identify = False, holder = None, observe_absence = False):
@@ -2034,7 +2055,6 @@ class PushObserver(Module):
         
     class ModuleProcess:
         
-        
         def __init__(self, sim):
             self.env = sim
             self.__reactivate = self.env.event()
@@ -2053,8 +2073,6 @@ class PushObserver(Module):
             self.__reactivate.succeed()
             self.__reactivate = self.env.event()
             logger.info(_("t={t}: observator reactivated; new reactivate event is {ev} ").format(t=self.env.now, ev=self.__reactivate))
-            
-            
         
         def reactivate(self, delay):
             if delay == 0:
@@ -2066,19 +2084,17 @@ class PushObserver(Module):
                     self.env.process(self.__wait_and_reactivate( delay))
                 else:
                     logger.info("not adding reactivation: already running.")
-            
         
         def run(self, module):
             """Process Execution Method"""
             while True:
-                
                 if not module.logic.trigger(module.product_list):
                     logger.info(_("t={t}: product not ready").format(t=self.env.now))
                     if self.last_report is not None:
                         #send message about product no longer present
                         rp = self.last_report
                         rp.how['present'] = False
-                        yield module.report_socket.put([rp])
+                        yield module.report_socket.put(rp)
                         self.last_report = None
                     if (len(module.product_list)):
                         #schedule event when product is ready ?
@@ -2092,10 +2108,9 @@ class PushObserver(Module):
                     module.emit(Module.STATE_CHANGE_SIGNAL, True)
                     reports = module.logic.response(module.product_list)
                     if module.properties['observe_absence']:
-                        self.last_report = reports[0]
+                        self.last_report = reports
                     logger.info(_("t={0}: observation done!").format(self.env.now))
                     yield module.report_socket.put(reports)
-                    
                     
                 logger.info(_("t={t}: observator passivated; waiting for event {ev} ").format(t=self.env.now, ev=self.reactivate))
                 #yield passivate, self
@@ -2108,7 +2123,7 @@ class PushObserver(Module):
     
     def report_now(self):
         """Generate a report based on the current product queue"""
-        if self.logic.trigger(self.product_list):     
+        if self.logic.trigger(self.product_list):
             self.emit(Module.STATE_CHANGE_SIGNAL, True)
             reports = self.logic.response(self.product_list)
             yield self.report_socket.put(reports)
@@ -2149,7 +2164,7 @@ class PullObserver(Module):
              
         def response(self, product_list):
             """Return one report that give for each product its ID, type and position"""
-            r = Report(self.observer.name, self.observer['event_name'], location = self.observer['holder'].name, date = self.env.now)
+            r = Report(self.observer.name, self.observer['event_name'], location = self.observer['holder'].name, date = self.observer.model.current_time())
             id_by_position = dict()
             type_by_position = dict()
             #print now(), [ (pos, product.pid) for (pos, product) in product_list.positions()]
@@ -2158,7 +2173,7 @@ class PullObserver(Module):
                 type_by_position[position] = product.product_type
             r.how['ID_by_position'] = id_by_position
             r.how['Type_by_position'] = type_by_position
-            return [r]
+            return r
     
     def __init__(self, model, name, event_name = None, holder = None):
         """Create e new intance of a PullObserver"""
@@ -2171,8 +2186,8 @@ class PullObserver(Module):
     def initialize(self):
         """Make a module ready to be simulated"""
         Module.initialize(self)
-        self.process = self.ModuleProcess(name = self.name, sim = self.get_sim())
-        self.get_sim().activate(self.process, self.process.run(self))
+        self.process = self.ModuleProcess(sim = self.get_sim())
+        self.get_sim().process(self.process.run(self))
         
     class ModuleProcess:
         def __init__(self, sim):
@@ -2185,17 +2200,16 @@ class PullObserver(Module):
                 logger.error("no holder hes been set")
             product_list = module.properties['holder'].internal
             while True:
-                yield get, self, module.request_socket, 1
-                request_cmd = self.got[0]
+                request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
-                now = self.model.current_time()
+                now = module.model.current_time()
                 if request_cmd.when > now:
-                    yield hold, self, request_cmd.when - now
+                    yield self.env.timeout(request_cmd.when - now)
                 product_list.update_positions()
                 module.emit(Module.STATE_CHANGE_SIGNAL, True)
                 reports = module.logic.response(product_list)
                 logger.info(_("t={0}: observation done!").format(now))
-                yield put, self, module.report_socket, reports
+                yield module.report_socket.put(reports)
 
     
        
