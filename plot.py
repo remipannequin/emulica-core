@@ -50,9 +50,17 @@ class Monitor:
     def __len__(self):
         return len(self.t)
 
-
-
-
+    def timeAverage(self):
+        """Return the time average of the y serie, at time t=now.
+        Result is area of the function defined as 
+            f(t) = yk if t is in [tk, tk+1], 
+        divided by the total time"""
+        now = self.env.now
+        T = self.t + [now]
+        m = 0
+        for i in range(len(self.t)):
+            m += self.y[i]*(T[i+1] - T[i])
+        return m / now
         
 
 class HolderChart:
