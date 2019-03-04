@@ -331,7 +331,7 @@ class Model(Module):
         Raises
             EmulicaError if module has not been found
         """
-        if name is None or name.is_empty():
+        if name is None or not name:
             logger.warning(_("get_module returned None because name was None or ''"))
             return None
         if name == self.name:
@@ -350,7 +350,7 @@ class Model(Module):
     def has_module(self, name):
         """Return True, if this module can be found in this model or in one of
         its submdel (i.e. get_module(name) found a module."""
-        if name is None or name.is_empty():
+        if name is None or not name:
             return False
         if name == self.name:
             return True
@@ -538,6 +538,7 @@ class Model(Module):
                 logger.warning('no simulation instance')
                 return 0
             return self.get_sim().now
+        return Module.current_time(self)
 
     def get_sim(self):
         """Return the SimPy.simulation object of this model"""
@@ -766,13 +767,13 @@ class Request(object):
                                                             who=self.who,
                                                             when=self.when)
         opt_param = list()
-        if not self.how.is_empty():
+        if self.how:
             opt_param.append(_("parameters={0}").format(str(self.how)))
-        if not self.where.is_empty():
+        if self.where:
             opt_param.append(_("location={0}").format(self.where))
-        if not self.why.is_empty():
+        if self.why:
             opt_param.append(_("comment={0}").format(self.why))
-        if not opt_param.is_empty():
+        if opt_param:
             return "{0} ({1})".format(s, ", ".join(opt_param))
         return s
 
@@ -821,13 +822,13 @@ class Report(object):
                                                              who=self.who,
                                                              when=self.when)
         opt_param = list()
-        if not self.how.is_empty():
+        if self.how:
             opt_param.append(_("parameters={0}").format(str(self.how)))
-        if not self.where.is_empty():
+        if self.where:
             opt_param.append(_("location={0}").format(self.where))
-        if self.why != None and not self.why.is_empty():
+        if self.why != None and self.why:
             opt_param.append(_("comment={0}").format(self.why))
-        if not opt_param.is_empty:
+        if opt_param:
             return "{0} ({1})".format(s, ", ".join(opt_param))
         return s
 
@@ -1854,7 +1855,7 @@ class Holder(Module):
         logger.info("internal state of holder {name} is {pos}".format(name=self.name, pos=pos))
         while capacity > 0 and p_last >= (capacity - 1) and speed != 0:
             logger.info("t={t}, last product is in position {p} in {holder} and capacity is {c}".format(t=self.get_sim().now, p=p_last, c=capacity, holder=self.name))
-            t = 1 / speed
+            t = 1. / speed
             yield self.get_sim().timeout(t)
             self.internal.update_positions()
             p_last = self.internal.last()
@@ -1905,7 +1906,7 @@ class Holder(Module):
             obs.process.reactivate(delay)
 
 
-class HolderState:
+class HolderState(object):
     """A HolderState is the internal object used to
     represent the state of products in a holder.
 
@@ -1944,8 +1945,6 @@ class HolderState:
         Update position in the __phy_pos list according to speed
         set __last_date to current time.
         """
-        #TODO: treat the case of non-accumulating conveyors ! ie if the first product is blocked, there is no position change
-        #get elapsed time
         elapsed = self.__parent.current_time() - self.__last_time
         #print "updating position", elapsed, self.__phy_pos
         block = 0
@@ -1970,7 +1969,7 @@ class HolderState:
 
     def append(self, product):
         if not self.__parent['capacity'] == 0:
-            initial_pos = self.__parent['capacity']
+            initial_pos = self.__parent['capacity'] - 1
         else:
             initial_pos = 0
         self.__phy_pos.append(initial_pos)
@@ -2228,7 +2227,7 @@ class PullObserver(Module):
             r = Report(self.observer.name,
                        self.observer['event_name'],
                        location=self.observer['holder'].name,
-                       date=self.observer.model.current_time())
+                       date=self.observer.current_time())
             id_by_position = dict()
             type_by_position = dict()
             #print now(), [ (pos, product.pid) for (pos, product) in product_list.positions()]
@@ -2267,12 +2266,12 @@ class PullObserver(Module):
             """Process Execution Method"""
             if module.properties['holder'] is None:
                 #TODO: raise exception
-                logger.error("no holder hes been set")
+                logger.error("no holder has been set")
             product_list = module.properties['holder'].internal
             while True:
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
-                now = module.model.current_time()
+                now = module.current_time()
                 if request_cmd.when > now:
                     yield self.env.timeout(request_cmd.when - now)
                 product_list.update_positions()
