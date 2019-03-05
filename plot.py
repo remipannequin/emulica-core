@@ -24,10 +24,9 @@ import logging
 import cairo
 import matplotlib
 from matplotlib import figure, patches, colors, cm
-#from matplotlib.backend_bases import FigureCanvasBase
+matplotlib.use('GTK3Cairo')
 from matplotlib.backends.backend_pdf import FigureCanvas
 
-matplotlib.use('GTK3Cairo')
 logger = logging.getLogger('emulica.plot')
 
 
