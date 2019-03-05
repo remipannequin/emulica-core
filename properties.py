@@ -25,7 +25,7 @@ import logging
 import gettext
 from gettext import gettext as _
 
-from emulica import emulation
+import emulation
 
 gettext.textdomain('emulica')
 gettext.install('emulica')
