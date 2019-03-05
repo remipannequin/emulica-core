@@ -48,8 +48,9 @@ SIGNAL_ADD_DONE = "add-done"
 
 COLOR_IDLE = "deep sky blue"
 COLOR_SETUP = "yellow"
-COLOR_BUSY = "green"
+COLOR_BUSY = "light green"
 COLOR_FAILED = "red"
+COLOR_DECORATION = "light grey"
 
 def CanvasPoints(plist):
     obj = Goo.CanvasPoints.new(len(plist))
@@ -282,7 +283,7 @@ class ModuleLayer(Goo.CanvasGroup):
         if outlined:
             self.__rect = Goo.CanvasRect(parent = self,
                                          line_width = 1,
-                                         stroke_color = "grey",
+                                         stroke_color = COLOR_DECORATION,
                                          fill_color = "light grey")
         else:
             self.__rect = None
@@ -1032,7 +1033,7 @@ class Create(ModuleWidget):
                                              center_y = 20,
                                              radius_x = 4,
                                              radius_y = 4,
-                                             fill_color = "dark blue",           
+                                             fill_color = "dark blue",
                                              line_width = 0)
         Goo.CanvasPolyline(parent = self,
                            points = p_points,
@@ -1184,7 +1185,7 @@ class Space(ModuleWidget):
                            arrow_width = 2.5,
                            end_arrow = True,
                            start_arrow = True,
-                           stroke_color = "grey")
+                           stroke_color = COLOR_DECORATION)
         Goo.CanvasPolyline(parent = self,
                            points = CanvasPoints([(25, 55), (55, 25)]),
                            line_width = 4,
@@ -1193,7 +1194,7 @@ class Space(ModuleWidget):
                            arrow_width = 2.5,
                            end_arrow = True,
                            start_arrow = True,
-                           stroke_color = "grey")
+                           stroke_color = COLOR_DECORATION)
         self.__light = Goo.CanvasEllipse(parent = self,
                                          center_x = 15,
                                          center_y = 15,
@@ -1272,13 +1273,13 @@ class Shape(ModuleWidget):
             teeth = Goo.CanvasPolyline(parent = self.__gear,
                                points = points,
                                close_path = True,
-                               fill_color = "grey",
+                               fill_color = COLOR_DECORATION,
                                line_width = 0)
             teeth.rotate(i*360/7, 0, 0)
         Goo.CanvasEllipse(parent = self.__gear,
                           center_x = 0, center_y = 0,
                           radius_x = 27, radius_y = 27,
-                          fill_color = "grey",
+                          fill_color = COLOR_DECORATION,
                           line_width = 0)
         Goo.CanvasEllipse(parent = self.__gear,
                           center_x = 0, center_y = 0,
@@ -1369,13 +1370,13 @@ class Assemble(ModuleWidget):
                            arrow_width = 2.5,
                            end_arrow = True,
                            start_arrow = False,
-                           stroke_color = "grey")
+                           stroke_color = COLOR_DECORATION)
         Goo.CanvasPolyline(parent = self,
                            points = CanvasPoints([(25, 52), (37, 40)]),
                            line_width = 4,
                            end_arrow = False,
                            start_arrow = False,
-                           stroke_color = "grey")
+                           stroke_color = COLOR_DECORATION)
         self.__light = Goo.CanvasEllipse(parent = self,
                                          center_x = 15,
                                          center_y = 15,
@@ -1484,7 +1485,7 @@ class Disassemble(ModuleWidget):
                            arrow_width = 2.5,
                            end_arrow = True,
                            start_arrow = False,
-                           stroke_color = "grey")
+                           stroke_color = COLOR_DECORATION)
         Goo.CanvasPolyline(parent = self,
                            points = CanvasPoints([(40, 40), (55, 55)]),
                            line_width = 4,
@@ -1493,7 +1494,7 @@ class Disassemble(ModuleWidget):
                            arrow_width = 2.5,
                            end_arrow = True,
                            start_arrow = False,
-                           stroke_color = "grey")
+                           stroke_color = COLOR_DECORATION)
         self.__light = Goo.CanvasEllipse(parent = self,
                                          center_x = 15,
                                          center_y = 15,
