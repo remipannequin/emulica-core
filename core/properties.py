@@ -25,7 +25,7 @@ import logging
 import gettext
 from gettext import gettext as _
 
-import emulation
+from emulica.core import emulation
 
 gettext.textdomain('emulica')
 gettext.install('emulica')
@@ -230,7 +230,7 @@ class SetupMatrix(object):
             final_prog -- the program at the end of the setup
             setup_time -- the setup delay
         """
-        if not self.__dest_prog.has_key(final_prog):
+        if final_prog not in  self.__dest_prog:
             self.__dest_prog[final_prog] = dict()
         self.__dest_prog[final_prog][initial_prog] = setup_time
         self.registry.notify_owner(self.parent_prop_name)
@@ -283,9 +283,9 @@ class SetupMatrix(object):
         """
         if initial_prog == final_prog:
             return 0
-        if self.__dest_prog.has_key(final_prog) and self.__dest_prog[final_prog].has_key(initial_prog):
+        if final_prog in self.__dest_prog and initial_prog in self.__dest_prog[final_prog]:
             expr = self.__dest_prog[final_prog][initial_prog]
-        elif self.__dest_default.has_key(final_prog):
+        elif final_prog in self.__dest_default:
             expr = self.__dest_default[final_prog]
         else:
             expr = self.default_time

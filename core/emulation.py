@@ -56,8 +56,8 @@ import gettext
 from gettext import gettext as _
 
 import simpy
-import properties
-from plot import Monitor
+from . import properties
+from . plot import Monitor
 
 
 gettext.textdomain('emulica')
@@ -1074,7 +1074,7 @@ class CreateAct(Actuator):
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
-                if request_cmd.when > now:
+                if request_cmd.when and request_cmd.when > now:
                     yield self.env.timeout(request_cmd.when - now)
                 if 'productID' in request_cmd.how.keys():
                     pid = request_cmd.how['productID']
@@ -1139,7 +1139,7 @@ class DisposeAct(Actuator):
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
-                if request_cmd.when > now:
+                if request_cmd.when and request_cmd.when > now:
                     yield self.env.timeout(request_cmd.when - now)
                 if request_cmd.what == DisposeAct.produce_keyword:
                     lock_rq = module.properties['source'].lock.request()
@@ -1199,7 +1199,7 @@ class SpaceAct(Actuator):
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
-                if request_cmd.when > now:
+                if request_cmd.when and request_cmd.when > now:
                     yield self.env.timeout(request_cmd.when - now)
                 ##if requested action is 'setup', perform setup
                 new_program = request_cmd.how['program']
@@ -1357,10 +1357,10 @@ class ShapeAct(Actuator):
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
-                if request_cmd.when > now:
+                if request_cmd.when and request_cmd.when > now:
                     yield self.env.timeout(request_cmd.when - now)
                 ##if requested action is 'setup', perform setup
-                if request_cmd.how.has_key('program'):
+                if 'program' in request_cmd.how:
                     new_program = request_cmd.how['program']
                 else:
                     new_program = module.program
@@ -1548,12 +1548,12 @@ class AssembleAct(Actuator):
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = module.model.current_time()
-                if request_cmd.when > now:
+                if request_cmd.when and request_cmd.when > now:
                     logger.debug(_("module {name} waiting {time}...").format(name=module.name,
                                                                              delay=request_cmd.when - now()))
                     yield self.env.timeout(request_cmd.when - now)
                 ##if requested action is 'setup', perform setup
-                if request_cmd.how.has_key('program'):
+                if 'program' in request_cmd.how:
                     new_program = request_cmd.how['program']
                 else:
                     new_program = module.program
@@ -1710,10 +1710,10 @@ class DisassembleAct(Actuator):
                 request_cmd = self.got[0]
                 logger.info(request_cmd)
                 now = self.model.current_time()
-                if request_cmd.when > now:
+                if request_cmd.when and request_cmd.when > now:
                     yield hold, self, request_cmd.when - now
                 ##if requested action is 'setup', perform setup
-                if request_cmd.how.has_key('program'):
+                if 'program' in request_cmd.how:
                     new_program = request_cmd.how['program']
                 else:
                     ##TODO: exception if in setup mode !
@@ -2272,7 +2272,7 @@ class PullObserver(Module):
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = module.current_time()
-                if request_cmd.when > now:
+                if request_cmd.when and request_cmd.when > now:
                     yield self.env.timeout(request_cmd.when - now)
                 product_list.update_positions()
                 module.emit(Module.STATE_CHANGE_SIGNAL, True)

@@ -22,7 +22,6 @@ model across a network.
 
 from . import emuML, emulation
 import time, threading, traceback, sys
-from Queue import Queue
 from twisted.protocols.basic import LineReceiver
 from twisted.internet.protocol import Factory
 from twisted.internet import reactor
@@ -97,7 +96,7 @@ class TimeControler(threading.Thread):
                 raise RunTimeError(_("a time limit must be set if executing in discrete-events mode"))
             self.__begin = time.time()
             self.model.emulate(self.until, step = self.step, callback = self.__callback)
-        except Exception, e:
+        except Exception as e:
             #extract line number and pass it to the handler...
             tb = traceback.extract_tb(sys.exc_traceback)
             logger.warning(e)
@@ -169,7 +168,6 @@ class TimeControler(threading.Thread):
         if request.who == NAME:
             if request.what in ACTIONS:
                 logger.debug(_("Request {0.who} to {0.what}").format(request))
-                print request
                 action = getattr(TimeControler, request.what)
                 action(self)
             else:
@@ -221,7 +219,7 @@ class EmulationServer:
     
     def notify_stop(self, model):
         """Stop the server"""
-        print "Emulation finished"
+        print("Emulation finished")
         self.__send_report(emulation.Report(NAME, 'finished'))
         #reactor.stop()
     
@@ -231,7 +229,7 @@ class EmulationServer:
     
     def notify_time(self, model):
         """Notify of time advance"""
-        print model.current_time()
+        print(model.current_time())
     
     def initialize_controler(self):
         """Make the emulation thread ready to run"""
@@ -241,7 +239,6 @@ class EmulationServer:
     
     def __send_report(self, report):
         """Send a report to the clients"""
-        print report
         message = emuML.write_report(report)
         for client in self.factory.clients:
             logging.info(_("sending report {0}").format(message))
@@ -296,7 +293,7 @@ class EmulationProtocol(LineReceiver):
             request = emuML.parse_request(line)
             logging.info(_("received request {0}").format(str(request)))
             self.factory.controler.dispatch(request)
-        except emuML.EmuMLError, message:
+        except emuML.EmuMLError as message:
             logging.warning(_("Error in processing message: {0}").format(message))
     
         

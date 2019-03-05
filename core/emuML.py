@@ -22,7 +22,7 @@ is ignored.
 import os.path
 from xml.etree.ElementTree import ElementTree, Element, SubElement
 #ElementTree._namespace_map["http://www.w3.org/2001/XMLSchema"] = 'xs'
-import emulation, properties
+from emulica.core import emulation, properties
 import logging, zipfile, pickle
 
 logger = logging.getLogger('emulica.emuML')
@@ -157,7 +157,7 @@ class EmuFile:
         """Close the emu file. Any operation is invalid after."""
         try:
             for zinfo in self.zfile.infolist():
-                zinfo.external_attr = 0600 << 16
+                zinfo.external_attr = 600 << 16
         finally:
             self.zfile.close()
 
@@ -557,38 +557,41 @@ class EmulationParser:
         
 def compile_control(model, source, **kwargs):
     """compile code in the control buffer. 
-    
+
     Arguments:
         model -- the model into which load the control
         source -- the source code of the control system
-    
+
     Any other keyword argument can be added : these kw arguments will be passed 
     to the initialize_control method of the source. 
-        
+
     Returns: 
         True if no error are found.
-    
+
     Raises:
         SyntaxError -- if there is syntax error in the source
         EmuMLError -- if init function has not been declared
-    
+
     """
     code = compile(source,'<control buffer>', 'exec')
     #TODO: improve safety ? we execute code that is included in .emu file or 
     #from the control editor... It migth contain malicious code...
     g = globals()
-    l = locals()
-    exec code in g, l
+    env = dict()
+    env['emulation'] = emulation
+    env['Request'] = emulation.Request
+    env['Report'] = emulation.Report
+    l = dict()
+    exec(code, env, l)
     logger.info(_("control code compilation sucessfull"))
-    if not 'initialize_control' in dir():
+    if not 'initialize_control' in l:
         raise EmuMLError(_("initialization function have not been implemented"))
     model.control_classes = []
     #This function come from the code we just compiled and executed
-    initialize_control(l, model, **kwargs)
-    
-        
+    init_function = l['initialize_control']
+    init_function(l, model, **kwargs)
 
-        
+
 def save_modules(model, modules):
     """Return an XML string that represent these modules. Used to cut or copy 
     modules.
@@ -657,7 +660,7 @@ def parse_request(message):
     from xml.etree.ElementTree import fromstring
     try:
         root = fromstring(message)
-    except Exception, message:
+    except Exception as message:
         raise EmuMLError(message)
     attributes = dict()
     elt = root.find('who')
@@ -704,7 +707,7 @@ def parse_report(message):
     from xml.etree.ElementTree import fromstring
     try:
         root = fromstring(message)
-    except Exception, message:
+    except Exception as message:
         raise EmuMLError(message)
     attributes = dict()
     elt = root.find('who')
