@@ -14,7 +14,38 @@
 # with this program.  If not, see <http://www.gnu.org/licenses/>.
 ### END LICENSE
 
-import optparse
-from locale import gettext as _
-#import gi
+try:
+    from locale import gettext as _
+except ImportError:
+    _ = lambda x: x
 
+import logging
+
+class NullHandler(logging.Handler):
+    def emit(self, record):
+        pass
+
+def set_up_logging(opts):
+    # add a handler to prevent basicConfig
+    root = logging.getLogger()
+    null_handler = NullHandler()
+    root.addHandler(null_handler)
+
+    formatter = logging.Formatter("%(levelname)s:%(name)s: %(funcName)s() '%(message)s'")
+
+    logger = logging.getLogger('emulica')
+    logger_sh = logging.StreamHandler()
+    logger_sh.setFormatter(formatter)
+    logger.addHandler(logger_sh)
+
+    lib_logger = logging.getLogger('emulica_lib')
+    lib_logger_sh = logging.StreamHandler()
+    lib_logger_sh.setFormatter(formatter)
+    lib_logger.addHandler(lib_logger_sh)
+
+    # Set the logging level to show debug messages.
+    if opts.verbose:
+        logger.setLevel(logging.DEBUG)
+        logger.debug('logging enabled')
+    if opts.verbose > 1:
+        lib_logger.setLevel(logging.DEBUG)

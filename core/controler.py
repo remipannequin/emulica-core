@@ -20,7 +20,7 @@ model across a network.
 """
 
 
-from emulica import emuML, emulation
+from . import emuML, emulation
 import time, threading, traceback, sys
 from Queue import Queue
 from twisted.protocols.basic import LineReceiver

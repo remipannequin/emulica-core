@@ -56,8 +56,8 @@ import gettext
 from gettext import gettext as _
 
 import simpy
-from emulica import properties
-from emulica.plot import Monitor
+import properties
+from plot import Monitor
 
 
 gettext.textdomain('emulica')
