@@ -14,10 +14,11 @@
 # with this program.  If not, see <http://www.gnu.org/licenses/>.
 ### END LICENSE
 
-try:
-    from locale import gettext as _
-except ImportError:
-    _ = lambda x: x
+
+#if gettext has not been installed, install a fallback in builtins
+import builtins
+if '_' not in dir(builtins):
+    builtins._ = lambda x: x
 
 import logging
 

@@ -22,13 +22,8 @@ properties in emulica.
 import random
 import logging
 
-import gettext
-from gettext import gettext as _
-
 from emulica.core import emulation
 
-gettext.textdomain('emulica')
-gettext.install('emulica')
 logger = logging.getLogger('emulica.properties')
 
 class Registry(dict):

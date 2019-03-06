@@ -52,16 +52,10 @@ Exceptions:
 import random
 import logging
 import copy
-import gettext
-from gettext import gettext as _
 
 import simpy
 from . import properties
 from . plot import Monitor
-
-
-gettext.textdomain('emulica')
-
 
 logger = logging.getLogger('emulica.emulation')
 
