@@ -27,24 +27,26 @@ import logging, zipfile, pickle
 
 logger = logging.getLogger('emulica.emuML')
 
-class EmuFile:
+class EmuFile(object):
     """This class enable to read or write Emulica files."""
-    def __init__(self, filename, mode = 'r', parent_model = None, name = 'main'):
+    def __init__(self, filename, mode='r', parent_model=None, name='main'):
         """Create a new instance of a EmuFile file.
-        
+
         Arguments:
             filename -- the name of the .emu file to open
             mode -- the open mode 'r' for reading, 'w' for writing
             parent_model -- the parent Emulation model, if current model is a 
                             submodel
             name -- the name of the model to load, if it is a submodel
-            
+
         Raises:
             IOError if a file is absent or not readeable/writable
+            FileNotFoundError if a submodel is absent
             EmuMLError if mode is not r or w, or if file in not a valid emu file.
         """
         self.filename = filename
         self.name = name
+        self.mode = mode
         if mode == 'r' or mode == 'w':
             self.zfile = zipfile.ZipFile(filename, mode)
             if mode == 'r':
@@ -55,7 +57,6 @@ class EmuFile:
                                                  name = name,
                                                  path = self.filename,
                                                  parent = parent_model)
-                    #TODO: get submodels properties
                 else:
                     raise EmuMLError(_("unable to find emulation.xml"))
                 if 'control.py' in namelist:
@@ -66,11 +67,10 @@ class EmuFile:
                     self.__props = pickle.loads(self.zfile.read('props.db'))
                 else:
                     raise EmuMLError(_("unable to find props.db"))
-            
         else:
-            raise EmuError(_("Invalid opening mode, only 'r' (for reading) and 'w' (for writing) are valid modes."))
-        
-    def read(self, parent = None, name = 'main'):
+            raise EmuMLError(_("Invalid opening mode, only 'r' (for reading) and 'w' (for writing) are valid modes."))
+
+    def read(self, parent=None, name='main'):
         """Read the content of a model. This class parse the emulation.xml file
         contained in the emu file, and also parse and loads submodels. NB:
         model and submodels properties can be retrieved using get_properties()
@@ -78,17 +78,17 @@ class EmuFile:
         Returns:
             a tuple containing the emulation model and the control file
         Raises:
-            EmuMLError -- if file was not open in read mode or if the emu 
+            EmuMLError -- if file was not open in read mode or if the emu
                            file is not correct
             IOError -- if a submodel could not be read
         """
-        #TODO: exception if in write mode
+        if self.mode != 'r':
+            raise EmuMLError(_("File opened in write mode, cannot read."))
         self.efile.parse()
-        
         return (self.efile.model, self.control)
-    
+
     def get_properties(self):
-        """Return a distionary of the model and submodels properties. Models are
+        """Return a dictionary of the model and submodels properties. Models are
         identified by their names (the top-model name is 'main')"""
         props = dict()
         props[self.name] = self.__props
@@ -96,63 +96,51 @@ class EmuFile:
             for (name, prop) in gsf.get_properties().items():
                 props[name] = prop
         return props
-    
-    def broken_submodels(self):
-        """Return a list of tuple (name, path) of submodels that are broken, in order to make the user able to relocate them before calling read()."""
-        r = []
-        for (name, path) in self.efile.submodels.items():
-            #TODO: check if submodels are readables
-            #TODO: avoid circular references !
-            if not os.path.exists(path):
-                r.append((name, path))
-        return r
-        
-    def relocate_submodel(self, name, new_path):
-        """Change the path of the specified submodel."""
-        self.efile.model.submodels[name] = new_path
 
     def write(self, model, control, properties):
         """Write the emu file element into a emu file.
-        
+
         Arguments:
             model -- the emulation model
             control -- the control system
             properties -- the model properties
-        
+
         """
+        if self.mode != 'w':
+            raise EmuMLError(_("File opened in read mode, cannot write."))
         self.write_model(model)
         self.write_control(control)
         self.write_properties(properties)
-        
+
     def write_model(self, model):
         """Write the emmulation model in the emu file.
-        
+
         Arguments:
             model -- the model to write
-            
+
         """
         efile = EmulationWriter(model)
         self.zfile.writestr('emulation.xml', efile.write())
-        
+
     def write_control(self, control):
         """Write the control string in the emu file.
-        
+
         Arguments:
             control -- the code (as text) of the control system
-            
+
         """
         self.zfile.writestr('control.py', control)
-        
+
     def write_properties(self, props):
         """Write the props dictionary in the emu file (using pickle).
-        
+
         Arguments:
             props -- a dictionary of model properties
-            
+
         """
         props_str = pickle.dumps(props) #get emulica config (using pickle)
         self.zfile.writestr('props.db', props_str)
-        
+
     def close(self):
         """Close the emu file. Any operation is invalid after."""
         try:
@@ -162,20 +150,17 @@ class EmuFile:
             self.zfile.close()
 
 
-class EmulationWriter:
+class EmulationWriter(object):
     """This class write an emulation model as an xml string"""
     def __init__(self, model):
         """Create a new instance of a emuML.EmulationFile.
-        
+
         Arguments:
             model -- the model from which extract modules
-        
-        Raises:
-            ???Error -- if string is not well formed   
-         
+
         """
         self.model = model
-    
+
     def write(self):
         """Return an XML string that correspond to model. NB: submodels are not
         outputed."""
@@ -196,7 +181,7 @@ class EmulationWriter:
                 mod_root.append(self.marshall_module(mod))
         tree = ElementTree(root)
         return tostring(root)
-        
+
     def marshall_submodel(self, module):
         """Return a XML element that represent a submodel inclusion (and its properties)"""
         #create a 
@@ -209,13 +194,13 @@ class EmulationWriter:
             self.marshall_value(prop_elt, prop)
             logger.debug("marshaling attribute {0} with value {1} for module {2}".format(name, prop, module.name))
         return submodel_elt
-        
+
     def marshall_module(self, module):
         """Return a XML element that represents the module.
-        
+
         Arguments:
             module -- the module to marshall
-            
+
         """
         mod_elt = Element("module")
         mod_elt.attrib["name"] = module.name
@@ -226,20 +211,19 @@ class EmulationWriter:
             self.marshall_value(prop_elt, prop)
             logger.debug("marshaling attribute {0} with value {1} for module {2}".format(name, prop, module.name))
         return mod_elt
-    
-    
+
+
     def marshall_value(self, root, value):
         """Append one or several elements to root. If value is None, nothing is
         appended, if value is a list, an element is append for each object of
         the list, else one element is appended.
-        
+
         Arguments:
             root -- the element to which append the created element
             value -- the property to marshall
-       
+
         """
         if value is None:
-            pass
             logger.warning("marshalling a null value")
         elif type(value) == list:
             list_root = SubElement(root, 'value-list')
@@ -269,11 +253,11 @@ class EmulationWriter:
     def marshall_prog(self, root, table):
         """Append an Element that represents a program table to element 
         prog_root.
-        
+
         Arguments:
             root -- the program table to marshall
             table -- the element to which append the created element
-            
+
         """
         prog_root = SubElement(root, 'program-table')
         #get program structure, write as attribute
@@ -293,11 +277,11 @@ class EmulationWriter:
     def marshall_setup(self, root, table):
         """Append a setup-table Element that represents a setup table to element 
         root.
-        
+
         Arguments:
             root -- the element to which append the created element
             table -- the setup table to marshall
-            
+
         """
         setup_root = SubElement(root, 'setup-table')
         setup_root.attrib["default_delay"] = str(table.default_time)
@@ -311,7 +295,7 @@ class EmulationWriter:
     def marshall_change(self, root, table):
         """Append a change-table Element that represents a change table to element 
         root.
-        
+
         Arguments:
             root -- the element to which append the created element
             table -- the setup table to marshall
@@ -321,9 +305,9 @@ class EmulationWriter:
             change = SubElement(change_root, 'change')
             change.attrib["property"] = name
             self.marshall_value(change, value)
-        
 
-class EmulationParser:
+
+class EmulationParser(object):
     """This class can be used to get an Emulation Model from an xml file."""
     def __init__(self, string, model = None, parent = None, name = 'main', path = None):
         """Create a new instance of a emuML.EmulationParser. When the object is 
@@ -389,6 +373,7 @@ class EmulationParser:
             if name in self.model.modules:
                 new_name = mod_type+str(len(self.model.modules))
                 self.renaming[name] = new_name
+                logger.warning("renaming module: " + name + " to: "+new_name)
                 name = new_name
             logger.info("creating module: " + name + " of type: "+mod_type)
             mod_class = getattr(emulation, mod_type)
@@ -403,7 +388,6 @@ class EmulationParser:
                 value = self.parse_child_as_value(mod.properties, name, prop_elt)
                 #print "property {0} = {1}".format(name, value)
                 mod.properties[name] = value
-         
         #get inputs
         interface_root = self.tree.find('interface')
         if not interface_root is None:
@@ -415,7 +399,6 @@ class EmulationParser:
             #if model has parent, call apply_inputs
             if not self.model.is_main:
                 self.model.apply_inputs()
-                
         #load submodel properties
         for submodel_elt in mod_root.findall('submodel'):
             submodel = self.model.get_module(submodel_elt.get('name'))
@@ -424,10 +407,7 @@ class EmulationParser:
                 value = self.parse_child_as_value(submodel.properties, name, prop_elt)
                 #print "property {0} = {1}".format(name, value)
                 submodel.properties[name] = value
-                
-                
         return mod_list
-
 
     def parse_child_as_value(self, props, root_prop_name, element):
         """Parse the children of element as values (or list of values)"""
@@ -439,7 +419,6 @@ class EmulationParser:
             return self.parse_value(props, root_prop_name, children[0])
         else:
             logger.warning("wrong number of values")
-    
 
     def parse_value(self, props, root_prop_name, element):
         """Parse a module property and return the resulting object
@@ -466,27 +445,21 @@ class EmulationParser:
             for child in children:
                 value.append(self.parse_value(props, root_prop_name, child))
             return value
-                
         elif element.tag == 'reference':
             name = element.text
             if name in self.renaming:
                 name = self.renaming[name]
             return self.model.get_module(name)
-            
         elif element.tag == 'program-table':
             return self.parse_prog(props, root_prop_name, element)
-        
         elif element.tag == 'setup-table':
             return self.parse_setup(props, root_prop_name, element)
-        
         elif element.tag == 'change-table':
             return self.parse_change(props, root_prop_name, element)
-        
         else:
             #error case
             logger.warning("errror: unknow tag {0}".format(element.tag))
-            
-        
+
     def parse_prog(self, props, root_prop_name, element):
         """Parse a program table and return the resulting object.
 
@@ -495,7 +468,7 @@ class EmulationParser:
 
         Returns:
             the parsed program table (type dictionary)
-            
+
         """
         #get the program table schema
         schema_str = element.get("schema")
@@ -510,7 +483,6 @@ class EmulationParser:
                 schema = []
         else:
             schema = eval(schema_str, globals(), context)
-            
         table = properties.ProgramTable(props, root_prop_name, schema)
         for program in element.findall('program'):
             delay = program.get("delay")
@@ -526,13 +498,13 @@ class EmulationParser:
 
     def parse_setup(self, props, root_prop_name, element):
         """Parse a setup table and return the resulting object.
-        
+
         Arguments:
             element -- the Element to parse
-        
+
         Returns:
             the parsed SetupTable
-       
+
         """
         default_delay = element.get("default_delay")
         setup = properties.SetupMatrix(props, default_delay, root_prop_name)
@@ -544,7 +516,7 @@ class EmulationParser:
             assert(not final is None)
             setup.add(init, final, delay)
         return setup
-        
+
     def parse_change(self, props, root_prop_name, element):
         """Parse a change table and return the resulting object"""
         table = properties.ChangeTable(props, root_prop_name)
@@ -554,15 +526,18 @@ class EmulationParser:
             value = self.parse_child_as_value(props, root_prop_name, child)
             table[name] = value
         return table
-        
-def compile_control(model, source, **kwargs):
-    """compile code in the control buffer. 
 
+def compile_control(model, source, **kwargs):
+    """compile code in the control buffer. The global environment that is available
+    in the control code is the package emulation, and classes Request and Report.
+    The control code must provide a function initialize_control that registers the
+    control modules in the model.
+    
     Arguments:
         model -- the model into which load the control
         source -- the source code of the control system
 
-    Any other keyword argument can be added : these kw arguments will be passed 
+    Any other keyword argument can be added : these kw arguments will be passed
     to the initialize_control method of the source. 
 
     Returns: 
@@ -574,8 +549,6 @@ def compile_control(model, source, **kwargs):
 
     """
     code = compile(source,'<control buffer>', 'exec')
-    #TODO: improve safety ? we execute code that is included in .emu file or 
-    #from the control editor... It migth contain malicious code...
     g = globals()
     env = dict()
     env['emulation'] = emulation
@@ -590,7 +563,6 @@ def compile_control(model, source, **kwargs):
     #This function come from the code we just compiled and executed
     init_function = l['initialize_control']
     init_function(l, model, **kwargs)
-
 
 def save_modules(model, modules):
     """Return an XML string that represent these modules. Used to cut or copy 
@@ -610,7 +582,6 @@ def save_modules(model, modules):
         mod_root.append(writer.marshall_module(mod))
     return tostring(top)
 
-
 def load_modules(model, elt):
     """Convenience function to load a set of modules from an XML string in the 
     model. Used to paste modules.
@@ -622,12 +593,11 @@ def load_modules(model, elt):
     parser = EmulationParser(elt, model = model)
     parser.parse()
 
-        
-def save(model, filename = None):
+def save(model, filename=None):
     """Convenience function to save a model to a file. If filename is not set, 
     the resulting xml string is returned."""
     writer = EmulationWriter(model)
-    if filename == None:
+    if filename is None:
         return writer.write()
     else:
         try:
@@ -645,7 +615,6 @@ def load(filename):
     efile = EmulationParser(content, path = filename)
     efile.parse()
     return efile.model
-
 
 def parse_request(message):
     """Parse a XML message and return a Request instance
@@ -693,7 +662,7 @@ def parse_request(message):
     if not elt == None:
         rq.why = elt.text
     return rq
-    
+
 def parse_report(message):
     """Parse a XML message and return a Report instance
     
@@ -740,44 +709,40 @@ def parse_report(message):
     if not elt == None:
         rp.why = elt.text
     return rp
-    
-    
+
 def write_report(report):
     """Return an XML message from a report object"""
     from xml.etree.ElementTree import tostring
     root = Element("report")
-    
-    for attr in ['who', 'what', 'where', 'why']:
-        elt = SubElement(root, attr)
-        elt.text = str(getattr(report, attr))
-    if report.when != None:
-        elt = SubElement(root, 'when')
-        elt.text = str(report.when)
+    for attr in ['who', 'what', 'where', 'why', 'when']:
+        value = getattr(report, attr)
+        if value:
+            elt = SubElement(root, attr)
+            elt.text = str(value)
     how_elt = SubElement(root, 'how')
     for (name, value) in report.how.items():
         elt = SubElement(how_elt, 'element')
         elt.attrib['name'] = name
         elt.text = str(value)
-        
     return tostring(root)
-    
+
 def write_request(request):
     """Return an XML message from a request object"""
     from xml.etree.ElementTree import tostring
     root = Element("request")
-    
     for attr in ['who', 'what', 'when', 'where', 'why']:
-        elt = SubElement(root, attr)
-        elt.text = str(getattr(request, attr))
+        value = getattr(request, attr)
+        if value:
+            elt = SubElement(root, attr)
+            elt.text = str(value)
     how_elt = SubElement(root, 'how')
     for (name, value) in request.how.items():
         elt = SubElement(how_elt, 'element')
         elt.attrib['name'] = name
         elt.text = str(value)
-        
     return tostring(root)
-    
-    
+
+
 class EmuMLError(Exception):
     """This class is used to deal with exception ancountrered when reading or 
     writing a file."""
