@@ -155,8 +155,7 @@ class Module(object):
             EmulicaError -- if the name is already used in the model
         """
         if new_name in self.model.modules.keys():
-            raise EmulicaError(self, _("""Cannot rename module {name} in {new_name}:
-            there is already a module of this name.""").format(name=self.name, new_name=new_name))
+            raise EmulicaError(self, _("""Cannot rename module {name} in {new_name}: there is already a module of this name.""").format(name=self.name, new_name=new_name))
         else:
             del self.model.modules[self.name]
             self.name = new_name
@@ -182,9 +181,7 @@ class Module(object):
             multiple_observation set to True
         """
         if not self.accept_observer:
-            raise EmulicaError(self, _("""A new request_socket must be created,
-            but there is already one, and the multiple_observation parameter was
-             not set to True"""))
+            raise EmulicaError(self, _("""A new request_socket must be created, but there is already one, and the multiple_observation parameter was not set to True"""))
         if not multiple_observation:
             self.accept_observer = False
             return self.report_socket
@@ -207,9 +204,7 @@ class Module(object):
             multiple_observation set to True
         """
         if not self.accept_observer:
-            raise EmulicaError(self, _("""A new request_socket must be created, but
-            there is already one, and the multiple_observation parameter was not
-            set to True"""))
+            raise EmulicaError(self, _("""A new request_socket must be created, but there is already one, and the multiple_observation parameter was not set to True"""))
         if self.__multiplier is None:
             self.__multiplier = EventMultiplier(self.get_sim(), self.report_socket)
             self.get_sim().process(self.__multiplier.run())
@@ -335,8 +330,7 @@ class Model(Module):
             if self.is_model():
                 return self.modules[names[0]]
             else:
-                raise EmulicaError(self, _("""Invalid module name: {0}.
-                                             Not present in model""").format(name))
+                raise EmulicaError(self, _("""Invalid module name: {0}. Not present in model""").format(name))
         else:
             submodel = self.modules[names[0]]
             return submodel.get_module(names[1])
@@ -353,8 +347,7 @@ class Model(Module):
             if self.is_model():
                 return names[0] in self.modules.keys()
             else:
-                raise EmulicaError(self, _("""Invalid module name: {0}.
-                                             Not present in model""").format(name))
+                raise EmulicaError(self, _("""Invalid module name: {0}. Not present in model""").format(name))
         else:
             submodel = self.modules[names[0]]
             return submodel.has_module(names[1])
@@ -387,8 +380,7 @@ class Model(Module):
             seed -- seed used to initialize the random number generator (default = None)
         """
         if not self.is_main:
-            raise EmulicaError(self, _("""Submodels cannot use this method. Only the
-                                          top level model can be executed."""))
+            raise EmulicaError(self, _("""Submodels cannot use this method. Only the top level model can be executed."""))
         self.until = until
         self.clear(step)
         if seed:
@@ -437,8 +429,7 @@ class Model(Module):
     def stop(self):
         """Stop emulation / simulation"""
         if not self.is_main:
-            raise EmulicaError(self, _("""Submodels cannot use this method.
-                                    Only the top level model can be executed."""))
+            raise EmulicaError(self, _("""Submodels cannot use this method. Only the top level model can be executed."""))
         logger.info(_("simulation stopped at t={0}").format(self.sim.now))
         #TODO: stop simulation
 
@@ -473,8 +464,7 @@ class Model(Module):
         """
         name = module.name
         if name in self.modules.keys():
-            raise EmulicaError(self, _("""Cannot create module {0}: there is
-            already a module of this name""").format(name))
+            raise EmulicaError(self, _("""Cannot create module {0}: there is already a module of this name""").format(name))
         #if name is main, throw an exception
         if name == 'main':
             raise EmulicaError(self, _("'main' is a reserved name"))
@@ -674,8 +664,7 @@ class Product(object):
                                                                      time=self.dispose_time))
             self.__active = False
         else:
-            logger.warning(_("""warning, not disposing product {pid} at {time}:
-            not active""").format(pid=self.pid, time=self.model.current_time()))
+            logger.warning(_("""warning, not disposing product {pid} at {time}: not active""").format(pid=self.pid, time=self.model.current_time()))
 
     def assemble(self, component, actuator, key=None):
         """
@@ -1070,8 +1059,7 @@ class CreateAct(Actuator):
         def run(self, module):
             "Process Execution Method"
             if module.properties['destination'] is None:
-                raise EmulicaError(module, _("""This module has not be properly
-                initialized: destination has not been set"""))
+                raise EmulicaError(module, _("""This module has not be properly initialized: destination has not been set"""))
             while True:
                 ##wait for a request to arrive
                 request_cmd = yield module.request_socket.get()
@@ -1096,8 +1084,7 @@ class CreateAct(Actuator):
                 if 'physical-properties' in request_cmd.how.keys():
                     for (prop, value) in request_cmd.how['physical-properties'].items():
                         if prop in module.properties['product_prop'].keys():
-                            logger.warning(_("""physical property {0} from
-                            create request supersedes property from module""").format(prop))
+                            logger.warning(_("""physical property {0} from create request supersedes property from module""").format(prop))
                         prod[prop] = value
                 if request_cmd.what == CreateAct.produce_keyword:
                     for ev in module.properties['destination'].put_product(prod):
@@ -1135,8 +1122,7 @@ class DisposeAct(Actuator):
         def run(self, module):
             """Process Execution Method"""
             if module.properties['source'] is None:
-                raise EmulicaError(module, _("""This module has not be
-                properly initialized: source has not been set"""))
+                raise EmulicaError(module, _("""This module has not be properly initialized: source has not been set"""))
             while True:
                 ##wait for a resquest to arrive
                 request_cmd = yield module.request_socket.get()
@@ -1353,8 +1339,7 @@ class ShapeAct(Actuator):
         def run(self, module):
             """Process Execution Method"""
             if module.properties['holder'] is None:
-                raise EmulicaError(self, _("""This module has not be properly
-                initialized: holder has not been set"""))
+                raise EmulicaError(self, _("""This module has not be properly initialized: holder has not been set"""))
             while True:
                 #wait for a request to arrive
                 request_cmd = yield module.request_socket.get()
@@ -1545,15 +1530,14 @@ class AssembleAct(Actuator):
         def run(self, module):
             """Process Execution Method"""
             if module.properties['holder'] is None:
-                raise EmulicaError(module, _("This module has not be properly initialized: holder has not been set"))
+                raise EmulicaError(module, _("""This module has not be properly initialized: holder has not been set"""))
             logger.debug(_("starting assembleAct {0}").format(module.name))
             while True:
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = module.model.current_time()
                 if request_cmd.when and request_cmd.when > now:
-                    logger.debug(_("module {name} waiting {time}...").format(name=module.name,
-                                                                             delay=request_cmd.when - now()))
+                    logger.debug(_("""module {name} waiting {time}...""").format(name=module.name, delay=request_cmd.when - now()))
                     yield self.env.timeout(request_cmd.when - now)
                 ##if requested action is 'setup', perform setup
                 if 'program' in request_cmd.how:
@@ -1570,15 +1554,16 @@ class AssembleAct(Actuator):
                     for yield_elt in self.__setup(new_program, module, implicit):
                         yield yield_elt
                 if request_cmd.what == AssembleAct.produce_keyword:
-                    logger.info(_("module {name} doing assembly at {t}").format(name=module.name,
-                                                                                t=module.model.current_time()))
+                    logger.info(_("""module {name} doing assembly at{t}""").format(name=module.name, t=module.model.current_time()))
                     for yield_elt in self.__produce(module):
                         yield yield_elt
                 logger.info(_("module {name} ready at {t}").format(name=module.name,
                                                                    t=module.model.current_time()))
 
         def __setup(self, new_program, module, implicit):
-            """Generate SimPy signals to execute a setup. If implicit is true, the setup is *not* reported"""
+            """Generate SimPy signals to execute a setup. If implicit is true, 
+            the setup is *not* reported
+            """
             logger.debug(_("begining setup on module {0}").format(module.name))
             setup = module.properties['setup'].get(module.program, new_program)
             #request own resource, and record begining of operation
@@ -1634,7 +1619,7 @@ class AssembleAct(Actuator):
             for elt in self.__hold(time, module):
                 yield elt
             #release resources and record end
-            if len(masters) > 1: logger.warning(_("ignoring product in holder {0} other than the first one").format(module.properties['holder'].name))
+            if len(masters) > 1: logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
                 masters[0].assemble(assemblee, assemblee.pid)
             else:
@@ -1665,8 +1650,8 @@ class AssembleAct(Actuator):
 
 
 class DisassembleAct(Actuator):
-    """This class disassemble the product currently present in unassy_holder, and send resulting sub_product
-    to other holder according to current program
+    """This class disassemble the product currently present in unassy_holder, and send
+    resulting sub_product to other holder according to current program
 
     Attributes:
         program_table --
@@ -1706,7 +1691,7 @@ class DisassembleAct(Actuator):
         def run(self, module):
             """Process Execution Method"""
             if module.properties['holder'] is None:
-                raise EmulicaError(self, _("This module has not be properly initialized: holder has not been set"))
+                raise EmulicaError(self, _("""This module has not be properly initialized: holder has not been set"""))
             while True:
                 logger.debug(_("starting diassembleAct {0}").format(module.name))
                 yield get, self, module.request_socket, 1
@@ -1723,8 +1708,7 @@ class DisassembleAct(Actuator):
                     new_program = module.program
                 if request_cmd.what == 'setup' or (request_cmd.what == DisassembleAct.produce_keyword and module.program != new_program):
                     implicit = (module.program != new_program)
-                    logger.info(_("module {name} doing setup at {t}").format(name=module.name,
-                                                                             t=self.model.current_time()))
+                    logger.info(_("""module {name} doing setup at {t}""").format(name=module.name, t=self.model.current_time()))
                     for yield_elt in self.__setup(new_program, module, implicit):
                         yield yield_elt
                 if request_cmd.what == DisassembleAct.produce_keyword:
@@ -1732,7 +1716,9 @@ class DisassembleAct(Actuator):
                         yield yield_elt
 
         def __setup(self, new_program, module, implicit):
-            """Generate SimPy signals to execute a setup. If implicit is true, the setup is *not* reported"""
+            """Generate SimPy signals to execute a setup. If implicit is true, 
+            the setup is *not* reported
+            """
             setup = module.properties['setup'].get(module.program, new_program)
             #request own resource, and record begining of operation
             yield request, self, module.resource
@@ -1762,7 +1748,9 @@ class DisassembleAct(Actuator):
             yield request, self, module.properties['holder'].lock
             masters = module.properties['holder'].get_products()
             #send a busy report
-            yield put, self, module.report_socket, [Report(module.fullname(), 'busy', params={'program':module.program})]
+            yield module.report_socket.put(Report(module.fullname(),
+                                                  'busy',
+                                                  params={'program':module.program}))
             #TODO: manage physical attribute
             program = module.properties['program_table'][module.program]
             #hold (with interruption)
@@ -1774,12 +1762,12 @@ class DisassembleAct(Actuator):
             #get component
             #key = program.transform['key']
             if len(masters) > 1:
-                logger.warning(_("ignoring product in holder {0} other than the first one").format(module.properties['holder'].name))
+                logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
                 component = masters[0].disassemble()
                 #TODO: manage dissembling key !!
             else:
-                logger.warning(_("ignoring request to disassemble: no product in holder {0}").format(module.properties['holder'].name))
+                logger.warning(_("""ignoring request to disassemble: no product in holder {0}""").format(module.properties['holder'].name))
                 #send an exception ???
             #send component to destination
             dest = program.transform['destination']
@@ -1818,8 +1806,8 @@ class Holder(Module):
         observers -- a list of observers that monitor this holder
         lock -- a resource that must be requested before accessing the products
         monitor -- a Monitor that record the number of products in the holder
-        internal -- a HolderState that represent current spacial setting of the products inside the holder
-        capacity -- Holder capacity (0 means infinite capacity)
+        internal -- a HolderState that represent current spacial setting of the products inside
+        the holder capacity -- Holder capacity (0 means infinite capacity)
         speed -- Holder speed (0 means inifinite speed)
     """
 
@@ -1857,12 +1845,12 @@ class Holder(Module):
         p_last = self.internal.last()
         logger.info("internal state of holder {name} is {pos}".format(name=self.name, pos=pos))
         while capacity > 0 and p_last >= (capacity - 1) and speed != 0:
-            logger.info("t={t}, last product is in position {p} in {holder} and capacity is {c}".format(t=self.get_sim().now, p=p_last, c=capacity, holder=self.name))
+            logger.info("""t={t}, last product is in position {p} in {holder} and capacity is {c}""".format(t=self.get_sim().now, p=p_last, c=capacity, holder=self.name))
             t = 1. / speed
             yield self.get_sim().timeout(t)
             self.internal.update_positions()
             p_last = self.internal.last()
-        logger.info("t={t}, inserting product in {holder}".format(t=self.get_sim().now, holder=self.name))
+        logger.info("""t={t}, inserting product in {holder}""".format(t=self.get_sim().now, holder=self.name))
         lock_rq = self.lock.request()
         yield lock_rq
         self.internal.append(product)
@@ -1901,11 +1889,7 @@ class Holder(Module):
         for obs in self.observers:
             obs.update(self.internal)
             now = self.model.current_time()
-            logger.info(_("""t={now}: reactivating obs {name}
-            (ev is {ev}); product ready at {delayed}""").format(now=now,
-                                                                delayed=now + delay,
-                                                                ev=obs.process.reactivate,
-                                                                name=obs.name))
+            logger.info(_("""t={now}: reactivating obs {name} (ev is {ev}); product ready at {delayed}""").format(now=now,  delayed=now + delay, ev=obs.process.reactivate, name=obs.name))
             obs.process.reactivate(delay)
 
 
@@ -1985,7 +1969,7 @@ class HolderState(object):
             product = self.__prod.pop(0)
             position = self.__phy_pos.pop(0)
         else:
-            logger.error("no product ready at the end of holder (position of first product is {0})".format(self.__phy_pos[0]))
+            logger.error("""no product ready at the end of holder (position of first product is {0})""".format(self.__phy_pos[0]))
         self.update_positions()
         return product
 
@@ -2039,12 +2023,10 @@ class PushObserver(Module):
                 #print "ready"
                 if self.__prod is None or (self.__prod != None and product_list.get_first() != self.__prod):
                     self.__prod = product_list.get_first()
-                    logger.info(_("product {pid} is ready at {time}").format(pid=self.__prod.pid,
-                                                                             time=self.observer.current_time()))
+                    logger.info(_("""product {pid} is ready at {time}""").format(pid=self.__prod.pid, time=self.observer.current_time()))
                     return True
             else:
-                logger.info(_("no products ready at {time} ({internal_state})").format(time=self.observer.current_time(),
-                                                                                       internal_state=product_list))
+                logger.info(_("""no products ready at {time} ({internal_state})""").format(time=self.observer.current_time(), internal_state=product_list))
                 self.__prod = None
                 return False
 
@@ -2066,12 +2048,14 @@ class PushObserver(Module):
         """Create a new instance of an Observer
 
         Observers take a list of products as inputs (from a product Holder).
-        A first function (on the list) is then applied to decide whether the observer is triggered, or not.
-        Then, a filtering function is called, to compute the Report object according to the input.
+        A first function (on the list) is then applied to decide whether the observer
+        is triggered, or not. Then, a filtering function is called, to compute the
+        Report object according to the input.
 
         Arguments:
             name -- module name
-            event_name -- the name of the event which is raised (default = None, then the name of the observer is used instead)
+            event_name -- the name of the event which is raised 
+                          (default = None, then the name of the observer is used instead)
             observe_type -- True if products type should be included in reports (default = True)
             identify -- True if products ID should be included in reports (default = False)
             observe_absence -- True if this observer should send report when the product leaves the
@@ -2137,8 +2121,7 @@ class PushObserver(Module):
                                                                            ev=self.__reactivate))
             self.__reactivate.succeed()
             self.__reactivate = self.env.event()
-            logger.info(_("t={t}: observator reactivated; new reactivate event is {ev} ").format(t=self.env.now,
-                                                                                                 ev=self.__reactivate))
+            logger.info(_("""t={t}: observator reactivated; new reactivate event is {ev} """).format(t=self.env.now, ev=self.__reactivate))
 
         def reactivate(self, delay):
             if delay == 0:
@@ -2177,12 +2160,9 @@ class PushObserver(Module):
                         self.last_report = reports
                     logger.info(_("t={0}: observation done!").format(self.env.now))
                     yield module.report_socket.put(reports)
-                logger.info(_("t={t}: observator passivated; waiting for event {ev} ").format(t=self.env.now, ev=self.reactivate))
+                logger.info(_("""t={t}: observator passivated; waiting for event {ev} """).format(t=self.env.now, ev=self.reactivate))
                 #yield passivate, self
                 yield self.__reactivate
-                #d = module['holder'].observation_delay()
-                #logger.info(_("t={t}: observator waiting holder delay {delay}".format(t=self.env.now, delay=d)))
-                #yield self.env.timeout(d)
                 logger.info(_("t={t}: observator reactivated...").format(t=self.env.now))
 
     def report_now(self):
@@ -2213,7 +2193,8 @@ class PullObserver(Module):
 
     class PositionLogic:
         """
-        This Observation logic return position information for all the products in the observed holder.
+        This Observation logic return position information for all the products in 
+        the observed holder.
 
         Attributes:
 
@@ -2296,6 +2277,4 @@ class EmulicaError(Exception):
         self.module = module
         self.err_time = err_time or module.model.current_time()
         self.exception = exception
-        Exception.__init__(self, _("(module {name}, t={time}): {message}").format(name=self.module.name,
-                                                                                  time=self.err_time,
-                                                                                  message=self.exception))
+        Exception.__init__(self, _("""(module {name}, t={time}): {message}""").format(name=self.module.name, time=self.err_time, message=self.exception))
