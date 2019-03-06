@@ -776,6 +776,15 @@ class Request(object):
         if opt_param:
             return "{0} ({1})".format(s, ", ".join(opt_param))
         return s
+        
+    def __eq__(self, other):
+        """Test whether two reports or request are equals.
+        They are considered equals if all their field are.
+        """
+        for i in ['who', 'what', 'when', 'where', 'how', 'why']:
+            if not getattr(self, i) == getattr(other, i):
+                return False
+        return True
 
 
 class Report(object):
