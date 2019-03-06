@@ -43,8 +43,8 @@ class Monitor(object):
             env - the simulation runtime
         """
         self.env = env
-        self.event_times = []
-        self.event_values = []
+        self.event_times = [0]
+        self.event_values = [0]
 
     def observe(self, value):
         """Add observation"""
@@ -90,6 +90,7 @@ class HolderChart(object):
         self.labels = []
         self.legend = dict()
         self.max = 0
+        self.t_end = 0
 
     def process_trace(self, times, values):
         """Make data suitable for a "step" plot."""
@@ -101,25 +102,24 @@ class HolderChart(object):
             res_t.append(times[i])
             res_s.append(values[i])
             res_t.append(times[i+1])
-            self.max = max(self.max, values[i])
         res_s.append(values[i])
-        res_t.append(times[i])
+        res_t.append(times[i+1])
         res_s.append(values[i])
-        res_t.append(times[i]+1)
-        self.max = max(self.max, values[i])
+        res_t.append(self.t_end)
+        self.max = max(values)
         return (res_t, res_s)
 
     def add_serie(self, name, holder):
         """Add a line in the graph."""
         monitor = holder.monitor
         #check whether there is actually some traces in the monitor
-        if monitor:
-            times = monitor.tseries()
-            values = monitor.yseries()
-        else:
-            times = [0]
-            values = [0]
+        if not monitor:
+            raise Exception(_("no monitor on this holder."))
+        times = monitor.tseries()
+        values = monitor.yseries()
+        self.t_end = monitor.env.now
         (times, values) = self.process_trace(times, values)
+        self.t_end = max(self.t_end, max(times) + 1)
         self.plot.set_ylabel(name)
         line = self.plot.plot(times, values, linewidth=1.0)
         converter = colors.ColorConverter()
@@ -142,6 +142,7 @@ class HolderChart(object):
 
     def save(self, filename, size=(8, 4)):
         """save the chart in a file"""
+        self.__finish_plot()
         canvas = FigureCanvas(self.__fig)
         self.__fig.set_canvas(canvas)
         self.__fig.set_size_inches(size)
@@ -250,6 +251,7 @@ class Legend(object):
         self.__create_plot()
         canvas = FigureCanvas(self.__fig)
         return canvas
+
 
 class GanttChart(object):
     """

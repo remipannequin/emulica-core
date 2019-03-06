@@ -776,7 +776,7 @@ class Request(object):
         if opt_param:
             return "{0} ({1})".format(s, ", ".join(opt_param))
         return s
-        
+
     def __eq__(self, other):
         """Test whether two reports or request are equals.
         They are considered equals if all their field are.
