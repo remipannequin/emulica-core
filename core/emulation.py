@@ -1585,7 +1585,7 @@ class AssembleAct(Actuator):
                                 'setup-done',
                                 params={'program':module.program},
                                 date=self.env.now)
-                yield module.report_socket.put([report])
+                yield module.report_socket.put(report)
 
         def __produce(self, module):
             #request own resource, record begining
@@ -1608,10 +1608,10 @@ class AssembleAct(Actuator):
             assemblee.record_position(module.properties['holder'].fullname())
             source.lock.release(source_rq)
             #send a busy report
-            yield module.report_socket.put([Report(module.fullname(),
+            yield module.report_socket.put(Report(module.fullname(),
                                                    'busy',
                                                    params={'program':module.program},
-                                                   date=self.env.now)])
+                                                   date=self.env.now))
             time = program.time()
             time /= module.performance_ratio
             #TODO: manage physical attribute
@@ -1630,10 +1630,10 @@ class AssembleAct(Actuator):
             module.resource.release(resource_rq)
             module.record_end(module.program)
             #send a report
-            yield module.report_socket.put([Report(module.fullname(),
+            yield module.report_socket.put(Report(module.fullname(),
                                                    'idle',
                                                    params={'program':module.program},
-                                                   date=self.env.now)])
+                                                   date=self.env.now))
 
         def __hold(self, time, module):
             old_ratio = module.performance_ratio
@@ -1688,64 +1688,63 @@ class DisassembleAct(Actuator):
         self.model.register_emulation_module(self)
 
     class ModuleProcess:
+        def __init__(self, sim):
+            self.env = sim
+
         def run(self, module):
             """Process Execution Method"""
             if module.properties['holder'] is None:
                 raise EmulicaError(self, _("""This module has not be properly initialized: holder has not been set"""))
             while True:
-                logger.debug(_("starting diassembleAct {0}").format(module.name))
-                yield get, self, module.request_socket, 1
-                request_cmd = self.got[0]
+                logger.debug(_("'disassembleAct {0} waiting for requests").format(module.name))
+                request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
-                now = self.model.current_time()
+                now = module.current_time()
                 if request_cmd.when and request_cmd.when > now:
-                    yield hold, self, request_cmd.when - now
+                    yield self.env.timeout(request_cmd.when - now)
                 ##if requested action is 'setup', perform setup
                 if 'program' in request_cmd.how:
                     new_program = request_cmd.how['program']
                 else:
-                    ##TODO: exception if in setup mode !
                     new_program = module.program
                 if request_cmd.what == 'setup' or (request_cmd.what == DisassembleAct.produce_keyword and module.program != new_program):
                     implicit = (module.program != new_program)
-                    logger.info(_("""module {name} doing setup at {t}""").format(name=module.name, t=self.model.current_time()))
-                    for yield_elt in self.__setup(new_program, module, implicit):
-                        yield yield_elt
+                    logger.info(_("""module {name} doing setup at {t}""").format(name=module.name, t=module.current_time()))
+                    setup = module.properties['setup'].get(module.program, new_program)
+                    #request own resource, and record begining of operation
+                    resource_rq = module.resource.request()
+                    yield resource_rq
+                    module.record_begin('setup')
+                    #setup delay
+                    delay = setup / module.performance_ratio
+                    for elt in self.__hold(delay, module):
+                        yield elt
+                    module.program = new_program
+                    #release own resource, record end
+                    module.resource.release(resource_rq)
+                    module.record_end('setup')
+                    #report
+                    if not implicit:
+                        report = Report(module.fullname(),
+                                        'setup-done',
+                                        params={'program':module.program},
+                                        date=self.env.now)
+                        yield module.report_socket.put(report)
+                    
                 if request_cmd.what == DisassembleAct.produce_keyword:
                     for yield_elt in self.__produce(module):
                         yield yield_elt
 
-        def __setup(self, new_program, module, implicit):
-            """Generate SimPy signals to execute a setup. If implicit is true, 
-            the setup is *not* reported
-            """
-            setup = module.properties['setup'].get(module.program, new_program)
-            #request own resource, and record begining of operation
-            yield request, self, module.resource
-            module.record_begin('setup')
-            #setup delay
-            delay = setup / module.performance_ratio
-            for elt in self.__hold(delay, module):
-                yield elt
-            module.program = new_program
-            #release own resource, record end
-            yield release, self, module.resource
-            module.record_end('setup')
-            #report
-            if not implicit:
-                report = Report(module.fullname(),
-                                'setup-done',
-                                params={'program':module.program},
-                                date=self.env.now)
-                yield put, self, module.report_socket, [report]
 
         def __produce(self, module):
             #request own resource, record begining
-            logger.debug(_("begining diassembling on module {0}").format(module. name))
-            yield request, self, module.resource
+            resource_rq = module.resource.request()
+            yield resource_rq
             module.record_begin(module.program)
+            logger.debug(_("begining disassembling on module {0}").format(module. name))
             #first lock 'master' product
-            yield request, self, module.properties['holder'].lock
+            holder_rq = module.properties['holder'].lock.request()
+            yield holder_rq
             masters = module.properties['holder'].get_products()
             #send a busy report
             yield module.report_socket.put(Report(module.fullname(),
@@ -1771,31 +1770,31 @@ class DisassembleAct(Actuator):
                 #send an exception ???
             #send component to destination
             dest = program.transform['destination']
-            yield request, self, dest.lock
+            #dest_rq = dest.lock.request()
+            logger.debug(_("""requesting destination holder, to put dissassembled product."""))
+            #yield dest_rq
             for ev in dest.put_product(component):
                 yield ev
-            yield release, self, dest.lock
+            #dest.lock.release(dest_rq)
+            logger.debug(_("releasing destination holder"))
             #release holer and resource
-            yield release, self, module.properties['holder'].lock
-            yield release, self, module.resource
+            module.properties['holder'].lock.release(holder_rq)
+            logger.debug(_("releasing working holder"))
+            module.resource.release(resource_rq)
+            logger.debug(_("releasing resource"))
             module.record_end(module.program)
             #send a report
-            yield put, self, module.report_socket, Report(module.fullname(),
-                                                          'idle',
-                                                          params={'program':module.program},
-                                                          date=self.env.now)
+            yield module.report_socket.put(Report(module.fullname(),
+                                                  'idle',
+                                                  params={'program':module.program},
+                                                  date=self.env.now))
 
         def __hold(self, time, module):
             old_ratio = module.performance_ratio
             while time != 0:
-                yield hold, self, time
-                #The hold statement returns : either the production time has
-                #completely elapsed, or it has been interrupted by a failure (cancel called)
-                if self.interrupted():
-                    time = self.interruptLeft * old_ratio / module.performance_ratio
-                    old_ratio = module.performance_ratio
-                else:
-                    time = 0
+                #TODO: manage failures
+                yield self.env.timeout(time)
+                time = 0
 
 
 class Holder(Module):
