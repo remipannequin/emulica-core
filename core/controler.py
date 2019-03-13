@@ -1,6 +1,7 @@
 # -*- Mode: Python; coding: utf-8; indent-tabs-mode: nil; tab-width: 4 -*-
 ### BEGIN LICENSE
-# Copyright (C) 2013 Rémi Pannequin, Centre de Recherche en Automatique de Nancy remi.pannequin@univ-lorraine.fr
+# Copyright (C) 2013 Rémi Pannequin, Centre de Recherche en Automatique de Nancy 
+# remi.pannequin@univ-lorraine.fr
 # This program is free software: you can redistribute it and/or modify it 
 # under the terms of the GNU General Public License version 3, as published 
 # by the Free Software Foundation.
@@ -256,11 +257,7 @@ class ReportSource:
             logging.info(_("attaching reports store to module {0}").format(module.name))
         while True:
             report = yield r.get()
-            #TODO: why two different interface ??
-            if '__len__' in dir(report):
-                send(report[0])
-            else:
-                send(report)
+            send(report)
 
 
 class EmulationProtocol(LineReceiver):
@@ -268,7 +265,7 @@ class EmulationProtocol(LineReceiver):
     This class is the protocol used by the server...
     First version of the protocol: only one client can connect !
     """
-    delimiter = "\n"
+    delimiter = b"\n"
     MAX_CLIENT = 1
     
     def connectionMade(self):
