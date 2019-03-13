@@ -902,8 +902,20 @@ class Actuator(Module):
                                                          prog_transform,
                                                          prog_resources)
         else:
-            logger.warning(_("""Can not add programs to actuator without program
-             tables (create and dispose actuators)"""))
+            logger.warning(_("""Can not add programs to actuator without program tables (create and dispose actuators)"""))
+
+
+class EmptyModule(Module):
+    """Empty module. Just to be able to have an address, and get requests
+    """
+
+    def __init__(self, model, name, speed=0, capacity=0):
+        Module.__init__(self, model, name)
+        self.model.register_emulation_module(self)
+
+    def initialize(self):
+        """Make a module ready to be simulated"""
+        Module.initialize(self)
 
 
 class Failure(Module):
