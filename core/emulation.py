@@ -145,7 +145,6 @@ class Module(object):
         """Make a module ready to be simulated"""
         self.report_socket = simpy.Store(env=self.get_sim())
         self.request_socket = simpy.Store(env=self.get_sim())
-        #print "initializing module", self, self.name, self.report_socket
         self.accept_observer = True
         self.__multiplier = None
 
@@ -174,7 +173,7 @@ class Module(object):
                 simulation a bit (default = False)
 
         Returns:
-            a Store that will containt future Report messages
+            a Store that will contain future Report messages
 
         Raises:
             EmulicaError, if this method is called several time without
@@ -397,12 +396,10 @@ class Model(Module):
             #TODO: implement callbacks (by using step instead of run ?)
             self.sim.run(until=until)
         else:
-            #print "calling simulate"
             self.sim.run(until=until)
         for mod in self.modules.values():
             if 'record_end' in dir(mod):
                 mod.record_end()
-        #print "disposing product at the end of simulation"
         for p in self.products.values():
             if p.is_active():
                 p.dispose()
@@ -509,7 +506,6 @@ class Model(Module):
             logger.info(_("registering control process {0}").format(str(process)))
             pem = getattr(process, pem)
             process.sim = self.get_sim()
-            #print self.sim, process, pem, args
             self.get_sim().process(pem(*args))
             self.control_system.append(process)
 
@@ -549,8 +545,6 @@ class EventMultiplier(object):
     def run(self):
         """Process Execution Method"""
         while True:
-            #print "em source", self.source
-            #print "em clients", self.clients
             ev = yield self.source.get()
             for client in self.clients:
                 new_ev = copy.copy(ev)
@@ -909,13 +903,26 @@ class EmptyModule(Module):
     """Empty module. Just to be able to have an address, and get requests
     """
 
-    def __init__(self, model, name, speed=0, capacity=0):
+    def __init__(self, model, name):
         Module.__init__(self, model, name)
         self.model.register_emulation_module(self)
 
     def initialize(self):
         """Make a module ready to be simulated"""
         Module.initialize(self)
+        self.process = self.ModuleProcess(sim=self.get_sim())
+        self.action = self.get_sim().process(self.process.run(self))
+
+    class ModuleProcess:
+        def __init__(self, sim):
+            self.env = sim
+
+        def run(self, module):
+            logger.info(_("""Launching module {0}.""".format(module.name)))
+            while True:
+                request_cmd = yield module.request_socket.get()
+                logger.info(request_cmd)
+                yield module.report_socket.put(request_cmd)
 
 
 class Failure(Module):
@@ -1196,7 +1203,6 @@ class SpaceAct(Actuator):
         def run(self, module):
             """Process Execution Method"""
             while True:
-                #print "space act waiting for a request"
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
@@ -1216,13 +1222,11 @@ class SpaceAct(Actuator):
                 #if requested action is 'produce', perform setup if needed,
                 #and transform the product
                 if request_cmd.what == SpaceAct.produce_keyword:
-                    #print "produce on space act"
                     #retrieve one product from source holder (according to prog)
                     source = module.properties['program_table'][module.program].transform['source']
                     #request own resource (to model failure)
                     resource_rq = module.resource.request()
                     yield resource_rq
-                    #print "resource requested"
                     module.record_begin(module.program)
                     #lock source holder
                     src_lock_rq = source.lock.request()
@@ -1944,7 +1948,6 @@ class HolderState(object):
         set __last_date to current time.
         """
         elapsed = self.__parent.current_time() - self.__last_time
-        #print "updating position", elapsed, self.__phy_pos
         block = 0
         #compute the new phy_pos:
         for i in range(len(self.__phy_pos)):
@@ -1992,7 +1995,6 @@ class HolderState(object):
         return self.__prod
 
     def is_first_ready(self):
-        #print "physical position of first prod", self.__phy_pos
         return (len(self.__prod) > 0) and (self.__phy_pos[0] < 1e-9)
 
     def get_first(self):
@@ -2031,7 +2033,6 @@ class PushObserver(Module):
             """check if a new Report should be sent"""
             product_list.update_positions()
             if product_list.is_first_ready():
-                #print "ready"
                 if self.__prod is None or (self.__prod != None and product_list.get_first() != self.__prod):
                     self.__prod = product_list.get_first()
                     logger.info(_("""product {pid} is ready at {time}""").format(pid=self.__prod.pid, time=self.observer.current_time()))
@@ -2106,7 +2107,6 @@ class PushObserver(Module):
 
     def initialize(self):
         """Make a module ready to be simulated"""
-        #print("initialize", self)
         Module.initialize(self)
         self.process = self.ModuleProcess(sim=self.get_sim())
         self.get_sim().process(self.process.run(self))
@@ -2162,7 +2162,6 @@ class PushObserver(Module):
                         #yield self.env.timeout(0.1)
                         pass
                     else:
-                        #print "trigger is false"
                         module.emit(Module.STATE_CHANGE_SIGNAL, False)
                 else:
                     module.emit(Module.STATE_CHANGE_SIGNAL, True)
@@ -2225,7 +2224,6 @@ class PullObserver(Module):
                        date=self.observer.current_time())
             id_by_position = dict()
             type_by_position = dict()
-            #print now(), [ (pos, product.pid) for (pos, product) in product_list.positions()]
             for position, product in product_list.positions():
                 id_by_position[position] = product.pid
                 type_by_position[position] = product.product_type

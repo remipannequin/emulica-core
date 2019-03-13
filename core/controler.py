@@ -99,7 +99,8 @@ class TimeControler(threading.Thread):
             self.model.emulate(self.until, step = self.step, callback = self.__callback)
         except Exception as e:
             #extract line number and pass it to the handler...
-            tb = traceback.extract_tb(sys.exc_traceback)
+            tb = traceback.extract_tb(sys.exc_info()[2])
+            traceback.print_exc()
             logger.warning(e)
             logger.warning(tb)
             for handler in self.callbacks[EXCEPTION]:
@@ -183,10 +184,6 @@ class TimeControler(threading.Thread):
             #self.__event_condition.release()
         else:
             logger.warning(_("unknown module {0}").format(request.who))
-
-
-
-
 
 
 class EmulationServer:
