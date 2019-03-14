@@ -910,19 +910,19 @@ class EmptyModule(Module):
     def initialize(self):
         """Make a module ready to be simulated"""
         Module.initialize(self)
-        self.process = self.ModuleProcess(sim=self.get_sim())
-        self.action = self.get_sim().process(self.process.run(self))
+        #self.process = self.ModuleProcess(sim=self.get_sim())
+        #self.action = self.get_sim().process(self.process.run(self))
 
-    class ModuleProcess:
-        def __init__(self, sim):
-            self.env = sim
+    #class ModuleProcess:
+        #def __init__(self, sim):
+            #self.env = sim
 
-        def run(self, module):
-            logger.info(_("""Launching module {0}.""".format(module.name)))
-            while True:
-                request_cmd = yield module.request_socket.get()
-                logger.info(request_cmd)
-                yield module.report_socket.put(request_cmd)
+        #def run(self, module):
+            #logger.info(_("""Launching module {0}.""".format(module.name)))
+            #while True:
+                #request_cmd = yield module.request_socket.get()
+                #logger.info(request_cmd)
+                #yield module.report_socket.put(request_cmd)
 
 
 class Failure(Module):
@@ -1036,7 +1036,7 @@ class CreateAct(Actuator):
     if this attribute is a dictionary containing a key 'productID', this ID
     will be used to create the product. If it contains a key 'productType'
     the product created will have this type (a string); If there is a key
-    productClass, a product of this class will be instacied.
+    productClass, a product of this class will be instanciated.
 
     Properties:
         destination -- destination holder
