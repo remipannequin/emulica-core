@@ -1079,7 +1079,8 @@ class CreateAct(Actuator):
         def run(self, module):
             "Process Execution Method"
             if module.properties['destination'] is None:
-                raise EmulicaError(module, _("""This module has not be properly initialized: destination has not been set"""))
+                exp = EmulicaError(module, _("""This module has not be properly initialized: destination has not been set"""))
+                raise exp
             while True:
                 ##wait for a request to arrive
                 request_cmd = yield module.request_socket.get()
@@ -2283,8 +2284,12 @@ class EmulicaError(Exception):
       time -- the time when the error was raised (default = None, then the value of now() is used)
       exception -- the error message
     """
-    def __init__(self, module, exception, err_time=None):
-        self.module = module
-        self.err_time = err_time or module.model.current_time()
-        self.exception = exception
-        Exception.__init__(self, _("""(module {name}, t={time}): {message}""").format(name=self.module.name, time=self.err_time, message=self.exception))
+    def __init__(self, module, exception=None, err_time=None):
+        if exception:
+            self.module = module
+            self.err_time = err_time or module.model.current_time()
+            self.exception = exception
+            Exception.__init__(self, _("""(module {name}, t={time}): {message}""").format(name=self.module.name, time=self.err_time, message=self.exception))
+        else:
+            #in this case, module is a string
+            Exception.__init__(self, module)
