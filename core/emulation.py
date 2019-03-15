@@ -367,21 +367,22 @@ class Model(Module):
             module.properties[prop_name] = "model['{0}']".format(name)
             module.properties.set_auto_eval(prop_name)
 
-    def emulate(self, until, step=False, callback=lambda: None, stepping_delay=1, seed=None):
+    def emulate(self, until, step=False, callback=lambda: None, stepping_delay=1, seed=None, rt_factor=1):
         """Wrap SimPy simulate method. At the end of the simulation, trace are flushed.
 
         Arguments:
             until -- time until when emulation stops
             step -- If true, emulation is executed in stepping mode (default = False)
-            callback -- if in step mode, the callback funstion to use
+            callback -- if in step mode, the callback function to use
             stepping_delay --  if in step mode, the minimun amound of time between two
                                call of the callback function
             seed -- seed used to initialize the random number generator (default = None)
+            rt_factor -- real time factor
         """
         if not self.is_main:
             raise EmulicaError(self, _("""Submodels cannot use this method. Only the top level model can be executed."""))
         self.until = until
-        self.clear(step)
+        self.clear(step, rt_factor)
         if seed:
             self.rng.seed(seed)
         if step:
@@ -404,12 +405,12 @@ class Model(Module):
             if p.is_active():
                 p.dispose()
 
-    def clear(self, rt=False):
+    def clear(self, rt=False, factor=1):
         """Clear the model."""
         #init of SimPy
         #if in real-time mode, initialize environment as simpy.rt.RealtimeEnvironment(factor=1)
         if rt:
-            self.sim = simpy.rt.RealtimeEnvironment(factor=1, strict=False)
+            self.sim = simpy.rt.RealtimeEnvironment(factor=factor, strict=False)
         else:
             self.sim = simpy.Environment()
         #self.sim.initialize()

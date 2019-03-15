@@ -63,7 +63,7 @@ class TimeControler(threading.Thread):
     
     
     
-    def __init__(self, model, real_time = False, rt_factor = 1, until = 0, step = False):
+    def __init__(self, model, real_time=False, rt_factor=1, until=0, step=False):
         """Create a new instance of a TimeControler
         
         Arguments:
@@ -96,7 +96,7 @@ class TimeControler(threading.Thread):
             if self.until == 0 and not self.real_time:
                 raise RunTimeError(_("a time limit must be set if executing in discrete-events mode"))
             self.__begin = time.time()
-            self.model.emulate(self.until, step = self.step, callback = self.__callback)
+            self.model.emulate(self.until, step = self.step, callback = self.__callback, rt_factor=self.rt_factor)
         except Exception as e:
             #extract line number and pass it to the handler...
             tb = traceback.extract_tb(sys.exc_info()[2])
@@ -131,7 +131,7 @@ class TimeControler(threading.Thread):
         else:
             logger.debug('delta == 0')
         if self.real_time:
-            #wait for a timout (delta) or for an interuption
+            #wait for a timeout (delta) or for an interruption
             self.__event_condition.acquire()
             self.__event_condition.wait(delta)
             self.__event_condition.release()
@@ -197,14 +197,14 @@ class EmulationServer:
         factory -- twisted's Factory
     """
     
-    def __init__(self, model, port):
+    def __init__(self, model, port, rt_factor=1.):
         """Create an instance of an EmulationServer"""
         self.factory = Factory()
         self.factory.protocol = EmulationProtocol
         self.factory.clients = list()
         self.factory.app = self
         self.port = port
-        self.factory.controler = TimeControler(model, real_time = True, rt_factor = 1, until = 100000, step = True)
+        self.factory.controler = TimeControler(model, real_time=True, rt_factor=rt_factor, until=100000, step=True)
         self.factory.controler.add_callback(self.notify_stop, EVENT_FINISH)
         self.factory.controler.add_callback(self.notify_start, EVENT_START)
         self.factory.controler.add_callback(self.notify_time, EVENT_TIME)
