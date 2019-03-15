@@ -1373,7 +1373,7 @@ class ShapeAct(Actuator):
                                                                              t=self.env.now))
                     implicit = (module.program != new_program)
                     setup = module.properties['setup'].get(module.program, new_program)
-                    #request own resource, and record begining of operation
+                    #request own resource, and record beginning of operation
                     resource_rq = module.resource.request()
                     yield resource_rq
                     module.record_begin('setup')
@@ -1413,7 +1413,7 @@ class ShapeAct(Actuator):
                         yield module.report_socket.put(report)
                 #now do the actual production
                 if request_cmd.what == ShapeAct.produce_keyword:
-                    #request own resource, record begining
+                    #request own resource, record beginning
                     resource_rq = module.resource.request()
                     yield resource_rq
                     #request program's resources
