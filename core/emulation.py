@@ -601,7 +601,7 @@ class Product(object):
             EmulicaError, if the pid has already been given to another product
         """
         if not pid == 0 and pid in model.products:
-            raise EmulicaError(self, _("product ID {0} has already been used").format(pid))
+            raise EmulicaError(model, _("product ID {0} has already been used").format(pid))
         while pid == 0 or pid in model.products:
             pid = model.next_pid()
         self.pid = pid
