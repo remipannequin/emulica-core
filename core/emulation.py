@@ -127,7 +127,7 @@ class Module(object):
         self.__multiplier = None
         self.report_socket = None
         self.request_socket = None
-
+    
     def fullname(self):
         """Return the module fully qualified name, of the form
         'submodel1.submodel2.module', or 'module2' or 'submodel1.submodel2'"""
@@ -223,6 +223,9 @@ class Module(object):
 
     def emit(self, signal, *args):
         """Trigger a signal."""
+        #to prevent bug when deepcopying modules
+        if not '__listener' in dir(self):
+            return
         for (handler, cb_args) in self.__listeners[signal].items():
             handler(*(args+cb_args))
 
@@ -291,8 +294,8 @@ class Model(Module):
         self.inputs = dict()
         if not self.is_main:
             self.products = model.products
-            if not path:
-                logger.warning(_("a default path will be used"))
+            #if not path:
+            #    logger.warning(_("a default path will be used"))
             self.path = path or '{0}.emu'.format(name)
             self.model.register_emulation_module(self)
         else:
@@ -528,6 +531,12 @@ class Model(Module):
         else:
             return self.model.get_sim()
 
+    def clone(self):
+        """Return a clone of this model"""
+        clone = Model()
+        
+        
+        
 
 class EventMultiplier(object):
     """
@@ -607,7 +616,10 @@ class Product(object):
         self.pid = pid
         self.model = model
         model.products[pid] = self
-        self.create_time = model.current_time()
+        if model.get_sim():
+            self.create_time = model.current_time()
+        else:
+            self.create_time = 0
         self.dispose_time = 0
         self.product_type = product_type
         self.properties = properties.Registry(self, model.rng)
@@ -1840,16 +1852,25 @@ class Holder(Module):
                                          speed,
                                          _("Speed"))
         self.model.register_emulation_module(self)
+        self.internal = HolderState(self)
 
     def initialize(self):
         """Make a module ready to be simulated"""
         Module.initialize(self)
         self.monitor = Monitor(env=self.get_sim())
         self.lock = simpy.Resource(env=self.get_sim(), capacity=1)
-        self.internal = HolderState(self)
+        #self.internal = HolderState(self)
         self.emit(Module.PROPERTIES_CHANGE_SIGNAL, 'holder')
         self.emit(Module.STATE_CHANGE_SIGNAL, len(self.internal))
-
+    
+    def set_content(self, products):
+        """Set products as the content of the holder.
+        this should be called before emulation start.
+        Arguments:
+            products -- the list of products (instance of Products) to use in initialisation
+        """
+        self.internal.set_content(products)
+    
     def put_product(self, product):
         """Insert a product at the tail of the queue.
 
@@ -1978,6 +1999,14 @@ class HolderState(object):
         self.__phy_pos.append(initial_pos)
         self.__prod.append(product)
         self.update_positions()
+
+    def set_content(self, products):
+        pos = 0
+        for p in products:
+            self.__phy_pos.append(pos)
+            self.__prod.append(p)
+            #self.update_positions()
+            pos += 1
 
     def pop(self):
         self.update_positions()

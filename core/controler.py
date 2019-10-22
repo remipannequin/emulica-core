@@ -27,6 +27,7 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet.protocol import Factory
 from twisted.internet import reactor
 import logging
+import copy
 
 EVENT_TIME = 1
 EVENT_FINISH = 2
@@ -201,13 +202,11 @@ class EmulationServer:
         """Create an instance of an EmulationServer"""
         self.factory = Factory()
         self.factory.protocol = EmulationProtocol
-        self.factory.clients = list()
+        self.factory.clients = dict()
         self.factory.app = self
         self.port = port
-        self.factory.controler = TimeControler(model, real_time=True, rt_factor=rt_factor, until=100000, step=True)
-        self.factory.controler.add_callback(self.notify_stop, EVENT_FINISH)
-        self.factory.controler.add_callback(self.notify_start, EVENT_START)
-        self.factory.controler.add_callback(self.notify_time, EVENT_TIME)
+        self.model = model
+        self.rt_factor = rt_factor
         
 
     def start(self):
@@ -215,33 +214,21 @@ class EmulationServer:
         reactor.listenTCP(self.port, self.factory)
         reactor.run()
     
-    def notify_stop(self, model):
-        """Stop the server"""
-        print("Emulation finished")
-        self.__send_report(emulation.Report(NAME, 'finished'))
-        #reactor.stop()
     
-    def notify_start(self, model):
-        """Notify starting of emulation"""
-        self.__send_report(emulation.Report(NAME, 'running'))
     
-    def notify_time(self, model):
-        """Notify of time advance"""
-        print(model.current_time())
-    
-    def initialize_controler(self):
+    def initialize_controler(self, client):
         """Make the emulation thread ready to run"""
+        #first make a deepcopy of the emulation model
+        new_model = copy.deepcopy(self.model)
+        #create a new controller instance and initialize it
+        controler = TimeControler(new_model, real_time=True, rt_factor=self.rt_factor, until=100000, step=True)
+        controler.add_callback(client.notify_stop, EVENT_FINISH)
+        controler.add_callback(client.notify_start, EVENT_START)
+        controler.add_callback(client.notify_time, EVENT_TIME)
         #add callback to generate emulator reports, using the ReportSource class
-        self.factory.controler.model.register_control(ReportSource, pem_args = (self.factory.controler.model, self.__send_report))
-        self.__send_report(emulation.Report(NAME, 'ready'))
-    
-    def __send_report(self, report):
-        """Send a report to the clients"""
-        message = emuML.write_report(report)
-        for client in self.factory.clients:
-            logging.info(_("sending report {0}").format(message))
-            client.sendLine(message)
-            reactor.wakeUp()
+        controler.model.register_control(ReportSource, pem_args = (controler.model, client.send_report))
+        #store client and corresponding controler
+        self.factory.clients[client] = controler
 
 
 class ReportSource:
@@ -263,15 +250,21 @@ class EmulationProtocol(LineReceiver):
     First version of the protocol: only one client can connect !
     """
     delimiter = b"\n"
-    MAX_CLIENT = 1
+    MAX_CLIENT = 100
     
     def connectionMade(self):
         """Serve a client, that has just opened a connection. 
         """
         if len(self.factory.clients) < EmulationProtocol.MAX_CLIENT:
             logging.info(_("connection opened by {0}").format(self.transport.getPeer().host))
-            self.factory.clients.append(self)
-            self.factory.app.initialize_controler()
+            
+            
+            
+            self.factory.app.initialize_controler(self)
+            
+            self.send_report(emulation.Report(NAME, 'ready'))
+            
+            
         else:
             self.sendLine(_("Another client is already connected: disconnecting..."))
             self.transport.loseConnection()
@@ -279,15 +272,34 @@ class EmulationProtocol(LineReceiver):
     def connectionLost(self, reason):
         """a connection just closed: remove protocol from clients table"""
         if self in self.factory.clients:
-            self.factory.clients.remove(self)
+            del self.factory.clients[self]
     
     def lineReceived(self, line):
         """an XML message has been received"""
         try:
             request = emuML.parse_request(line)
             logging.info(_("received request {0}").format(str(request)))
-            self.factory.controler.dispatch(request)
+            self.factory.clients[self].dispatch(request)
         except emuML.EmuMLError as message:
             logging.warning(_("Error in processing message: {0}").format(message))
     
-        
+    def notify_stop(self, model):
+        """Stop the server"""
+        print("Emulation finished")
+        self.send_report(emulation.Report(NAME, 'finished'))
+        #reactor.stop()
+    
+    def notify_start(self, model):
+        """Notify starting of emulation"""
+        self.send_report(emulation.Report(NAME, 'running'))
+    
+    def notify_time(self, model):
+        """Notify of time advance"""
+        print(model.current_time())
+    
+    def send_report(self, report):
+        """Send a report to the client"""
+        message = emuML.write_report(report)
+        logging.info(_("sending report {0}").format(message))
+        self.sendLine(message)
+        reactor.wakeUp()#??    
