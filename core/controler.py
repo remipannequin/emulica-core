@@ -95,7 +95,7 @@ class TimeControler(threading.Thread):
             c(self.model)
         try:
             if self.until == 0 and not self.real_time:
-                raise RunTimeError(_("a time limit must be set if executing in discrete-events mode"))
+                raise RunTimeError(_("a time limit must be set if executing in discrete-events mode"))#@UndefinedVariable
             self.__begin = time.time()
             self.model.emulate(self.until, step = self.step, callback = self.__callback, rt_factor=self.rt_factor)
         except Exception as e:
@@ -211,8 +211,8 @@ class EmulationServer:
 
     def start(self):
         """Start the server"""
-        reactor.listenTCP(self.port, self.factory)
-        reactor.run()
+        reactor.listenTCP(self.port, self.factory)#@UndefinedVariable
+        reactor.run()#@UndefinedVariable
     
     
     
@@ -236,7 +236,7 @@ class ReportSource:
     def run(self, model, send):
         """PEM : create a Store, and attach it to every module in the model"""
         r = model.new_report_socket()
-        for module in model.modules.values():
+        for module in model.module_list():
             module.attach_report_socket(r)
             logging.info(_("attaching reports store to module {0}").format(module.name))
         while True:
@@ -302,4 +302,4 @@ class EmulationProtocol(LineReceiver):
         message = emuML.write_report(report)
         logging.info(_("sending report {0}").format(message))
         self.sendLine(message)
-        reactor.wakeUp()#??    
+        reactor.wakeUp()#@UndefinedVariable
