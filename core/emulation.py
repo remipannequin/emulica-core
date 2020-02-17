@@ -586,7 +586,7 @@ class Product(object):
 
     Attribute:
         create_time -- time when the product was create
-        dispose_time -- time when this product was dicposed
+        dispose_time -- time when this product was disposed
         properties -- a dictionary of physical properties
         components -- a dictionary of other products that compose this one
         space_history -- history of space transformations
@@ -1638,6 +1638,7 @@ class AssembleAct(Actuator):
             assemblee.record_position(module.properties['holder'].fullname())
             source.lock.release(source_rq)
             #send a busy report
+            start = self.env.now
             yield module.report_socket.put(Report(module.fullname(),
                                                    'busy',
                                                    params={'program':module.program},
@@ -1651,7 +1652,11 @@ class AssembleAct(Actuator):
             #release resources and record end
             if len(masters) > 1: logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
-                masters[0].assemble(assemblee, assemblee.pid)
+                masters[0].assemble(assemblee, module.fullname())
+                masters[0].record_transformation(start,
+                                                self.env.now,
+                                                module.fullname(),
+                                                module.program)
             else:
                 logger.warning(_("assembling with an empty product"))
                 for ev in module.properties['holder'].put_product(assemblee):

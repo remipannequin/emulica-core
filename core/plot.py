@@ -21,10 +21,10 @@
 
 
 import logging
-import cairo
 import matplotlib
 from matplotlib import figure, patches, colors, cm
-matplotlib.use('GTK3Cairo')
+#import cairo
+#matplotlib.use('GTK3Cairo')
 from matplotlib.backends.backend_pdf import FigureCanvas
 
 logger = logging.getLogger('emulica.plot')
@@ -162,7 +162,7 @@ class ProductChart(object):
         self.rows = []
         self.legend = dict()
         self.colormap = cm.ScalarMappable(cmap=cm.gist_rainbow)
-        self.colormap.set_clim(0, 1)
+        self.colormap.set_clim(0, 10)
 
     def add_serie(self, name, prod):
         """Add data correponding to a new product. Basicaly, it is adding a line
@@ -255,7 +255,7 @@ class Legend(object):
 
 class GanttChart(object):
     """
-    A Gantt chart showing colored horital bar to show activity of resources...
+    A Gantt chart showing colored horizontal bar to show activity of resources...
 
     Attributes:
         name -- the name of the graph
@@ -274,9 +274,9 @@ class GanttChart(object):
         self.rows = []
         self.legend = {'setup': (0.4, 0.4, 0.4, 1), 'failure': (0, 0, 0, 0.5)}
         self.colormap = cm.ScalarMappable(cmap=cm.jet)
-        self.colormap.set_clim(0, 1)
+        self.colormap.set_clim(0, 10)
 
-    def process_trace(self, trace):
+    def process_trace(self, name, trace):
         """Return a condensed trace"""
         failures = list()
         condensed = list()
@@ -290,7 +290,7 @@ class GanttChart(object):
             for tr in failures:
                 trace.remove(tr)
             #condensate the rest
-            p = trace[0][2]
+            p = name+trace[0][2]#this is useful when different resources execute prog with the same name
             start = trace[0][0]
             end = trace[0][1]
             for tr in trace[1:]:
@@ -301,7 +301,7 @@ class GanttChart(object):
                 else:
                     condensed.append((start, end, p))
                     start = tr[0]
-                    p = tr[2]
+                    p = name+tr[2]
                     end = tr[1]
             condensed.append((float(start), float(end), p))
             #add legend entries
@@ -324,12 +324,16 @@ class GanttChart(object):
         """
         trace = module.trace
         #condensate the trace
-        (condensed, failures) = self.process_trace(trace)
+        (condensed, failures) = self.process_trace(name, trace)
         #add to plot
         y = 10*(len(self.rows)+1)
         self.plot.broken_barh([(tr[0], tr[1] - tr[0]) for tr in condensed],
-                              (y, 9),
+                              (y, 6),
                               color=[self.legend[tr[2]] for tr in condensed])
+        #add text on the bars
+        for tr in condensed:
+            if not ('setup' in tr[2] or 'failure' in tr[2]):
+                self.plot.text(tr[0], y + 7, tr[2][len(name):], va='bottom')
         self.plot.broken_barh([(tr[0], tr[1] - tr[0]) for tr in failures],
                               (y, 3),
                               color='black')
@@ -365,10 +369,16 @@ class GanttChart(object):
 
 def color_from_int(colormap, n):
     """Return a color in the colormap the correspond to the integer n (greater than zero).
-    it return the following sequence: 1, 1/2, 1/4, 3/4, 1/16, 3/16, 5/16, ...
+    if n is lower than 10, the nth element of the colormap is returned, if greater, there is
+    a shift added to avoid same color: 1/2 (11-20), 1/4(21-30), 3/4, 1/16, 3/16, 5/16, ...
     """
-    assert n > 0
     from math import log, floor
-    p = floor(log(n, 2))
-    s = (2 * (n - pow(2, p)) + 1)/(pow(2, p + 1))
-    return colormap.to_rgba(s)
+    seq = n % 10
+    if seq > 10:
+        r = n//10
+        p = floor(log(r, 2))
+        shift = (2 * (r - pow(2, p)) + 1)/(pow(2, p + 1))
+    else:
+        shift = 0
+    return colormap.to_rgba((seq+shift))
+
