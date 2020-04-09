@@ -1,0 +1,2 @@
+<emulationModel><modules><module name="obsSink" type="PushObserver"><attribute name="event_name" value="sink-ready"/><attribute name="holder" reference="cell.sink"/><attribute name="identify" value="False"/><attribute name="observe_type" value="True"/></module><module name="create" type="CreateAct"><attribute name="destination" reference="cell.source"/><attribute name="product_prop" type="dict"/></module><submodel name="cell" path="cell.gseme"/><module name="dispose" type="DisposeAct"><attribute name="source" reference="cell.sink"/></module></modules></emulationModel>
+
