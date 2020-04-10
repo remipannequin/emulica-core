@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- Mode: Python; coding: utf-8; indent-tabs-mode: nil; tab-width: 4 -*-
+
 ### BEGIN LICENSE
 # Copyright (C) 2013 Rémi Pannequin, Centre de Recherche en Automatique de Nancy remi.pannequin@univ-lorraine.fr
 # This program is free software: you can redistribute it and/or modify it 
@@ -41,20 +42,20 @@ EXP_RESULT_RESOURCE = [[(5, 5, 'setup'), (5, 10.0, 'p'), (13.0, 18.0, 'p'), (21.
 
 
 EXP_RESULT_PRODUCT = [
-(1, [], [(0, 'source1'), (0, 'trans'), (2.0, 'assy_space'), (10.0, 'trans'), (11.0, 'buffer'), (13.0, 'trans'), (15.0, 'unassy_space'), (21.0, 'trans'), (22.0, 'out1')], 0, 100.0), 
-(2, [], [(1, 'source1'), (11.0, 'trans'), (13.0, 'assy_space'), (18.0, 'trans'), (19.0, 'buffer'), (22.0, 'trans'), (24.0, 'unassy_space'), (29.0, 'trans'), (30.0, 'out1')], 1, 100.0), 
-(3, [], [(3, 'source1'), (19.0, 'trans'), (21.0, 'assy_space'), (26.0, 'trans'), (27.0, 'buffer'), (30.0, 'trans'), (32.0, 'unassy_space'), (37.0, 'trans'), (38.0, 'out1')], 3, 100.0), 
-(4, [], [(5, 'source2'), (5, 'assy_space'), (10.0, 'trans'), (11.0, 'buffer'), (13.0, 'trans'), (15.0, 'unassy_space'), (20.0, 'out2')], 5, 100.0), 
-(5, [], [(6, 'source2'), (13.0, 'assy_space'), (18.0, 'trans'), (19.0, 'buffer'), (22.0, 'trans'), (24.0, 'unassy_space'), (29.0, 'out2')], 6, 100.0), 
-(6, [], [(7, 'source1'), (27.0, 'trans'), (29.0, 'assy_space'), (34.0, 'trans'), (35.0, 'buffer'), (38.0, 'trans'), (40.0, 'unassy_space'), (45.0, 'trans'), (46.0, 'out1')], 7, 100.0), 
-(7, [], [(7, 'source2'), (21.0, 'assy_space'), (26.0, 'trans'), (27.0, 'buffer'), (30.0, 'trans'), (32.0, 'unassy_space'), (37.0, 'out2')], 7, 100.0), 
-(8, [], [(9, 'source2'), (29.0, 'assy_space'), (34.0, 'trans'), (35.0, 'buffer'), (38.0, 'trans'), (40.0, 'unassy_space'), (45.0, 'out2')], 9, 100.0), 
-(9, [], [(11, 'source2'), (37.0, 'assy_space'), (42.0, 'trans'), (43.0, 'buffer'), (46.0, 'trans'), (48.0, 'unassy_space'), (53.0, 'out2')], 11, 100.0), 
-(10, [], [(12, 'source1'), (35.0, 'trans'), (37.0, 'assy_space'), (42.0, 'trans'), (43.0, 'buffer'), (46.0, 'trans'), (48.0, 'unassy_space'), (53.0, 'trans'), (54.0, 'out1')], 12, 100.0), 
-(11, [], [(20, 'source1'), (43.0, 'trans'), (45.0, 'assy_space'), (50.0, 'trans'), (51.0, 'buffer'), (54.0, 'trans'), (56.0, 'unassy_space'), (61.0, 'trans'), (62.0, 'out1')], 20, 100.0), 
-(12, [], [(23, 'source2'), (45.0, 'assy_space'), (50.0, 'trans'), (51.0, 'buffer'), (54.0, 'trans'), (56.0, 'unassy_space'), (61.0, 'out2')], 23, 100.0), 
-(13, [], [(30, 'source1'), (51.0, 'trans'), (53.0, 'assy_space'), (58.0, 'trans'), (59.0, 'buffer'), (62.0, 'trans'), (64.0, 'unassy_space'), (69.0, 'trans'), (70.0, 'out1')], 30, 100.0), 
-(14, [], [(35, 'source2'), (53.0, 'assy_space'), (58.0, 'trans'), (59.0, 'buffer'), (62.0, 'trans'), (64.0, 'unassy_space'), (69.0, 'out2')], 35, 100.0)]
+(1,  [( 5.0, 10.0, 'assy', 'p')], [(0, 'source1'), (0, 'trans'), (2.0, 'assy_space'), (10.0, 'trans'), (11.0, 'buffer'), (13.0, 'trans'), (15.0, 'unassy_space'), (21.0, 'trans'), (22.0, 'out1')], 0, 100.0), 
+(2,  [(13.0, 18.0, 'assy', 'p')], [(1, 'source1'), (11.0, 'trans'), (13.0, 'assy_space'), (18.0, 'trans'), (19.0, 'buffer'), (22.0, 'trans'), (24.0, 'unassy_space'), (29.0, 'trans'), (30.0, 'out1')], 1, 100.0), 
+(3,  [(21.0, 26.0, 'assy', 'p')], [(3, 'source1'), (19.0, 'trans'), (21.0, 'assy_space'), (26.0, 'trans'), (27.0, 'buffer'), (30.0, 'trans'), (32.0, 'unassy_space'), (37.0, 'trans'), (38.0, 'out1')], 3, 100.0), 
+(4,  [( 5.0, 10.0, 'assy', 'p')], [(5, 'source2'), (5, 'assy_space'), (10.0, 'trans'), (11.0, 'buffer'), (13.0, 'trans'), (15.0, 'unassy_space'), (20.0, 'out2')], 5, 100.0), 
+(5,  [(13.0, 18.0, 'assy', 'p')], [(6, 'source2'), (13.0, 'assy_space'), (18.0, 'trans'), (19.0, 'buffer'), (22.0, 'trans'), (24.0, 'unassy_space'), (29.0, 'out2')], 6, 100.0), 
+(6,  [(29.0, 34.0, 'assy', 'p')], [(7, 'source1'), (27.0, 'trans'), (29.0, 'assy_space'), (34.0, 'trans'), (35.0, 'buffer'), (38.0, 'trans'), (40.0, 'unassy_space'), (45.0, 'trans'), (46.0, 'out1')], 7, 100.0), 
+(7,  [(21.0, 26.0, 'assy', 'p')], [(7, 'source2'), (21.0, 'assy_space'), (26.0, 'trans'), (27.0, 'buffer'), (30.0, 'trans'), (32.0, 'unassy_space'), (37.0, 'out2')], 7, 100.0), 
+(8,  [(29.0, 34.0, 'assy', 'p')], [(9, 'source2'), (29.0, 'assy_space'), (34.0, 'trans'), (35.0, 'buffer'), (38.0, 'trans'), (40.0, 'unassy_space'), (45.0, 'out2')], 9, 100.0), 
+(9,  [(37.0, 42.0, 'assy', 'p')], [(11, 'source2'), (37.0, 'assy_space'), (42.0, 'trans'), (43.0, 'buffer'), (46.0, 'trans'), (48.0, 'unassy_space'), (53.0, 'out2')], 11, 100.0), 
+(10, [(37.0, 42.0, 'assy', 'p')], [(12, 'source1'), (35.0, 'trans'), (37.0, 'assy_space'), (42.0, 'trans'), (43.0, 'buffer'), (46.0, 'trans'), (48.0, 'unassy_space'), (53.0, 'trans'), (54.0, 'out1')], 12, 100.0), 
+(11, [(45.0, 50.0, 'assy', 'p')], [(20, 'source1'), (43.0, 'trans'), (45.0, 'assy_space'), (50.0, 'trans'), (51.0, 'buffer'), (54.0, 'trans'), (56.0, 'unassy_space'), (61.0, 'trans'), (62.0, 'out1')], 20, 100.0), 
+(12, [(45.0, 50.0, 'assy', 'p')], [(23, 'source2'), (45.0, 'assy_space'), (50.0, 'trans'), (51.0, 'buffer'), (54.0, 'trans'), (56.0, 'unassy_space'), (61.0, 'out2')], 23, 100.0), 
+(13, [(53.0, 58.0, 'assy', 'p')], [(30, 'source1'), (51.0, 'trans'), (53.0, 'assy_space'), (58.0, 'trans'), (59.0, 'buffer'), (62.0, 'trans'), (64.0, 'unassy_space'), (69.0, 'trans'), (70.0, 'out1')], 30, 100.0), 
+(14, [(53.0, 58.0, 'assy', 'p')], [(35, 'source2'), (53.0, 'assy_space'), (58.0, 'trans'), (59.0, 'buffer'), (62.0, 'trans'), (64.0, 'unassy_space'), (69.0, 'out2')], 35, 100.0)]
 
 EMULATE_UNTIL = 100;
 
