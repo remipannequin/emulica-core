@@ -100,7 +100,7 @@ class TestSim12(unittest.TestCase):
         timer.join(60)
         self.assertTrue(self.begin)
         self.assertTrue(self.finish)
-        self.assertEquals([2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30], self.t)
+        self.assertEqual([2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30], self.t)
         result = [(pid, p.shape_history, p.space_history, p.create_time, p.dispose_time) for (pid, p) in model.products.items()]
         self.assertEqual(result, EXP_RESULT)
 
