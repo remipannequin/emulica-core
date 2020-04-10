@@ -370,14 +370,14 @@ class Model(Module):
             module.properties[prop_name] = "model['{0}']".format(name)
             module.properties.set_auto_eval(prop_name)
 
-    def emulate(self, until, step=False, callback=lambda: None, stepping_delay=1, seed=None, rt_factor=1):
+    def emulate(self, until, rt=False, callback=lambda: None, step=1, seed=None, rt_factor=1):
         """Wrap SimPy simulate method. At the end of the simulation, trace are flushed.
 
         Arguments:
             until -- time until when emulation stops
-            step -- If true, emulation is executed in stepping mode (default = False)
+            rt -- If true, emulation is executed in real time mode (default = False)
             callback -- if in step mode, the callback function to use
-            stepping_delay --  if in step mode, the minimun amound of time between two
+            stepping_delay --  if in RT mode, the minimun amound of time between two
                                call of the callback function
             seed -- seed used to initialize the random number generator (default = None)
             rt_factor -- real time factor
@@ -385,19 +385,19 @@ class Model(Module):
         if not self.is_main:
             raise EmulicaError(self, _("""Submodels cannot use this method. Only the top level model can be executed."""))
         self.until = until
-        self.clear(step, rt_factor)
+        self.clear(rt, rt_factor)
         if seed:
             self.rng.seed(seed)
         if step:
             class Timer:
-                def run(self, sd):
+                def run(self, sd, until):
                     """P.E.M. : put the request in the receiver queue and finish"""
-                    while True:
+                    while self.sim.now < until:
                         yield self.sim.timeout(sd)
+                        callback()
             timer_process = Timer()
             timer_process.sim = self.sim
-            self.sim.process(timer_process.run(stepping_delay))
-            #TODO: implement callbacks (by using step instead of run ?)
+            self.sim.process(timer_process.run(step, until))
             self.sim.run(until=until)
         else:
             self.sim.run(until=until)
