@@ -96,15 +96,16 @@ class HolderChart(object):
         """Make data suitable for a "step" plot."""
         res_s = []
         res_t = []
-        i = 0
-        for i in range(len(times)-1):
-            res_s.append(values[i])
-            res_t.append(times[i])
-            res_s.append(values[i])
-            res_t.append(times[i+1])
-        res_s.append(values[i])
-        res_t.append(times[i+1])
-        res_s.append(values[i])
+        cur_v = values[0]
+        res_s.append(cur_v)
+        res_t.append(times[0])
+        for (v, t) in zip(values[1:], times[1:]):
+            res_s.append(cur_v)
+            res_t.append(t)
+            cur_v = v
+            res_s.append(v)
+            res_t.append(t)
+        res_s.append(cur_v)
         res_t.append(self.t_end)
         self.max = max(values)
         return (res_t, res_s)
