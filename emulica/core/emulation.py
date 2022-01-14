@@ -1,5 +1,5 @@
 # -*- Mode: Python; coding: utf-8; indent-tabs-mode: nil; tab-width: 4 -*-
-### BEGIN LICENSE
+# ## BEGIN LICENSE
 # Copyright (C) 2013 Rémi Pannequin, Centre de Recherche en Automatique de
 # Nancy remi.pannequin@univ-lorraine.fr
 # This program is free software: you can redistribute it and/or modify it
@@ -13,10 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License along
 # with this program.  If not, see <http://www.gnu.org/licenses/>
-### END LICENSE
+# ## END LICENSE
 
 """Emulica, the python Systemic Emulation Modelling and Execution envionnement,
-is a SimPy-based simulation package, that enable emulation of manufacturing systems.
+is a SimPy-based simulation package, that enable emulation of manufacturing
+systems.
 
 Classes:
 
@@ -29,13 +30,16 @@ Classes:
 
     Holder -- Module that holds products
 
-    PullObserver -- Module that observe products in a holder, automatic observation
-    PushObserver -- Module that observe products in a holder, observe when requested
+    PullObserver -- Module that observe products in a holder, automatic
+        observation
+    PushObserver -- Module that observe products in a holder, observe when
+        requested
 
     Actuator -- Generic Module that alow transformation on products
 
     CreateAct -- Actuator that creates new products
-    DisposeAct -- Actuator that disposes products (i.e. remove them from the model)
+    DisposeAct -- Actuator that disposes products (i.e. remove them from the
+        model)
     ShapeAct -- Actuator that changes the physical attributes of products
     SpaceAct -- Actuator that moves products
     AssembleAct -- Actuator that assemble one or more products toghether
@@ -60,7 +64,7 @@ from . plot import Monitor
 logger = logging.getLogger('emulica.emulation')
 
 
-#control utilities
+# Control utilities
 def wait_idle(report_socket):
     """This function may be useful in control sytems. It get repetitively Reports
     on the given socket until found a report with what == 'idle'.
@@ -2239,8 +2243,8 @@ class PullObserver(Module):
 
     class PositionLogic:
         """
-        This Observation logic return position information for all the products in 
-        the observed holder.
+        This Observation logic return position information for all the products
+        in the observed holder.
 
         Attributes:
 
@@ -2253,7 +2257,8 @@ class PullObserver(Module):
             return True
 
         def response(self, product_list):
-            """Return one report that give for each product its ID, type and position"""
+            """Return one report that give for each product its ID, type and
+             position"""
             r = Report(self.observer.name,
                        self.observer['event_name'],
                        location=self.observer['holder'].name,
@@ -2314,9 +2319,10 @@ class EmulicaError(Exception):
     """Exception in the Emulica module
 
     Attributes:
-      module -- the module where the exception has been raised
-      time -- the time when the error was raised (default = None, then the value of now() is used)
-      exception -- the error message
+        module -- the module where the exception has been raised
+        time -- the time when the error was raised (default = None, then the
+            value of now() is used)
+        exception -- the error message
     """
     def __init__(self, module, exception=None, err_time=None):
         if exception:
