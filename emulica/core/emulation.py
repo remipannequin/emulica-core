@@ -2070,18 +2070,29 @@ class PushObserver(Module):
             self.observer = observer
 
         def trigger(self, product_list):
-            """check if a new Report should be sent"""
+            """check if a new Report should be sent.
+            If the product that is at the first position has already been 
+            reported, return False.
+            """
             product_list.update_positions()
             if product_list.is_first_ready():
                 if self.__prod is None or (self.__prod != None and product_list.get_first() != self.__prod):
                     self.__prod = product_list.get_first()
                     logger.info(_("""product {pid} is ready at {time}""").format(pid=self.__prod.pid, time=self.observer.current_time()))
                     return True
+                else:
+                    return False
             else:
                 logger.info(_("""no products ready at {time} ({internal_state})""").format(time=self.observer.current_time(), internal_state=product_list))
                 self.__prod = None
                 return False
-
+        
+        def is_gone(self, product_list):
+            """Check if the product that triggered the observer is gone (and 
+            thus that we need to report a product absence)"""
+            return self.__prod is None or (len(product_list) and self.__prod != product_list.get_first())
+            
+        
         def response(self, product_list):
             """Return a list of reports to send"""
             report = Report(self.observer.name,
@@ -2190,7 +2201,7 @@ class PushObserver(Module):
             while True:
                 if not module.logic.trigger(module.product_list):
                     logger.info(_("t={t}: product not ready").format(t=self.env.now))
-                    if self.last_report is not None:
+                    if self.last_report is not None and module.logic.is_gone(module.product_list):
                         #send message about product no longer present
                         rp = self.last_report
                         rp.how['present'] = False
