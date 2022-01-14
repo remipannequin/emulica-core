@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='emulica',
-    version='1.0.2',
+    version='1.0.3',
     license='GPL-3',
     author='Remi Pannequin',
     author_email='remi.pannequin@univ-lorraine.fr',
