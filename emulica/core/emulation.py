@@ -228,9 +228,8 @@ class Module(object):
     def emit(self, signal, *args):
         """Trigger a signal."""
         #to prevent bug when deepcopying modules
-        # lines removed because buggy in python3 ? __attr are not visibles in dir anyway...
-        #if not '__listeners' in dir(self):
-        #    return
+        if not '_Module__listeners' in dir(self):
+            return
         for (handler, cb_args) in self.__listeners[signal].items():
             handler(*(args+cb_args))
 
