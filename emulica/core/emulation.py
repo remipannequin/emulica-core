@@ -228,8 +228,9 @@ class Module(object):
     def emit(self, signal, *args):
         """Trigger a signal."""
         #to prevent bug when deepcopying modules
-        if not '__listener' in dir(self):
-            return
+        # lines removed because buggy in python3 ? __attr are not visibles in dir anyway...
+        #if not '__listeners' in dir(self):
+        #    return
         for (handler, cb_args) in self.__listeners[signal].items():
             handler(*(args+cb_args))
 
@@ -1933,6 +1934,7 @@ class Holder(Module):
     def __notif_observers(self, delay):
         """Activate the process excecution method of the observers."""
         self.monitor.observe(len(self.internal))
+        logger.debug("""Holder {} about to notify observers: {}""".format(self.name, self.observers))
         for obs in self.observers:
             obs.update(self.internal)
             now = self.model.current_time()
