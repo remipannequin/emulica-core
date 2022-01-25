@@ -293,7 +293,8 @@ class EmulationProtocol(LineReceiver):
     
     def notify_time(self, model):
         """Notify of time advance"""
-        print(model.current_time())
+        #print(model.current_time())
+        pass
     
     def send_report(self, report):
         """Send a report to the client"""
