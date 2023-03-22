@@ -411,7 +411,7 @@ class EmulationParser(object):
 
     def parse_child_as_value(self, props, root_prop_name, element):
         """Parse the children of element as values (or list of values)"""
-        children = element.getchildren()
+        children = list(element)
         if len(children) == 0:
             logger.warning("returning None when parsing element")
             return None
@@ -440,9 +440,8 @@ class EmulationParser(object):
                 return element.text
                 
         elif element.tag == 'value-list':
-            children = element.getchildren()
             value = list()
-            for child in children:
+            for child in element:
                 value.append(self.parse_value(props, root_prop_name, child))
             return value
         elif element.tag == 'reference':
