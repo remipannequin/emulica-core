@@ -1533,6 +1533,9 @@ class AssembleAct(Actuator):
     produce_keyword = 'assy'
     program_keyword = [('source', properties.Display(properties.Display.REFERENCE,
                                                      _("Source")))]
+    # TODO: assemble in a holder associated with the product ?
+    # alternatively, use an "assemble keyword" that enable assembled parts to be stored in a
+    # dictionary-like fashion
     request_params = ['program']
 
     def __init__(self, model, name, assy_holder=None):
@@ -1656,7 +1659,7 @@ class AssembleAct(Actuator):
             #release resources and record end
             if len(masters) > 1: logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
-                masters[0].assemble(assemblee, module.fullname())
+                masters[0].assemble(assemblee, module.fullname()) # TODO here, use additionnal parameter
                 masters[0].record_transformation(start,
                                                 self.env.now,
                                                 module.fullname(),
@@ -1803,7 +1806,7 @@ class DisassembleAct(Actuator):
                 logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
                 component = masters[0].disassemble()
-                #TODO: manage dissembling key !!
+                #TODO: manage dissassembling key !!
             else:
                 logger.warning(_("""ignoring request to disassemble: no product in holder {0}""").format(module.properties['holder'].name))
                 #send an exception ???
@@ -2242,8 +2245,92 @@ class PushObserver(Module):
         self.product_list = product_list
 
 
+class MeasurementObserver(Actuator):
+    """Like a PullObserver, a Measurement get the value of a physical attribute.
+    
+    """
+    produce_keyword = 'measure'
+    program_keyword = [('property',
+                         properties.Display(properties.Display.PHYSICAL_PROPERTIES_LIST, _("Properties")))]
+    request_params = ['program']
+        
+
+
+    def __init__(self, model, name, event_name=None, holder=None):
+        """Create e new intance of a PullObserver"""
+        Actuator.__init__(self, model, name)
+        self.properties.add_with_display('event_name',
+                                         properties.Display.VALUE,
+                                         event_name or name,
+                                         ("Event Name"))
+        self.properties.add_with_display('holder',
+                                         properties.Display.REFERENCE,
+                                         holder,
+                                         ("Holder"))
+        self.properties.add_with_display('program_table',
+                                         properties.Display.PROGRAM_TABLE,
+                                         properties.ProgramTable(self.properties,
+                                                                 'program_table',
+                                                                 self.program_keyword),
+                                         ("Program table"))
+        self.model.register_emulation_module(self)
+
+    def initialize(self):
+        """Make a module ready to be simulated"""
+        Module.initialize(self)
+        self.process = self.ModuleProcess(sim=self.get_sim())
+        self.get_sim().process(self.process.run(self))
+
+    class ModuleProcess:
+        def __init__(self, sim):
+            self.env = sim
+
+        def run(self, module):
+            """Process Execution Method"""
+            if module.properties['holder'] is None:
+                #TODO: raise exception
+                logger.error("no holder has been set")
+            product_list = module.properties['holder'].internal
+            while True:
+                logger.debug(_(f"MeasureObserver {module.name} waiting for requests"))
+                request_cmd = yield module.request_socket.get()
+                logger.info(request_cmd)
+                now = module.current_time()
+                if request_cmd.when and request_cmd.when > now:
+                    yield self.env.timeout(request_cmd.when - now)
+                if request_cmd.what != MeasurementObserver.produce_keyword:
+                    logger.warning(f"Measurement observer {module.name} received invalid request to do {request_cmd.what}")
+                    continue
+                if 'program' not in request_cmd.how:
+                    logger.warning(f"no program in request")
+                    continue    
+                program_name = request_cmd.how['program']
+                if program_name not in module.properties['program_table']:
+                    logger.warning(f"program {program_name} not found")
+                    continue
+                program = module.properties['program_table'][program_name]
+                attr_name = program.transform['property']
+                
+                product_list.update_positions()
+                r = Report(module.name,
+                       module['event_name'],
+                       location=module['holder'].name,
+                       date=module.current_time())
+                if product_list.is_first_ready():
+                    product = product_list.get_first()
+                    yield self.env.timeout(program.time(product=product))
+                    # TODO what if property doesn't exist
+                    r.how[attr_name] = product[attr_name]
+                    logger.info(_("t={0}: observation done!").format(now))
+                    yield module.report_socket.put(r)
+                else:
+                    logger.warning(f"at t={now}, no product was ready to be observed")
+
+
+
+
 class PullObserver(Module):
-    """This observer is trigerred when a Request is received (action keyword "query").
+    """This observer is trigerred when a Request is received (action keyword "observe").
     So, the control system 'pull' observation events.
 
     Attributes:
