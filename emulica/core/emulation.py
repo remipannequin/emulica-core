@@ -2312,13 +2312,17 @@ class MeasurementObserver(Actuator):
                 attr_name = program.transform['property']
                 
                 product_list.update_positions()
-                r = Report(module.name,
+                
+                if product_list.is_first_ready():
+                    product = product_list.get_first()
+                    # TODO lock product
+                    
+                    yield self.env.timeout(program.time(product=product))
+                    
+                    r = Report(module.name,
                        module['event_name'],
                        location=module['holder'].name,
                        date=module.current_time())
-                if product_list.is_first_ready():
-                    product = product_list.get_first()
-                    yield self.env.timeout(program.time(product=product))
                     # TODO what if property doesn't exist
                     r.how[attr_name] = product[attr_name]
                     logger.info(_("t={0}: observation done!").format(now))

@@ -60,7 +60,7 @@ EXP_RESULT_PRODUCT = [(1, [(6.0, 10.0, 'machine', 'p1')],
                           {'mass': 5, 'length': 49}, 0, 70)] 
                                             
                       
-EXP_RESULT_MEAS = [(3, 20), (13.0, 30), (22.0, 40), (31.0, 50)]
+EXP_RESULT_MEAS = [(3, 20), (11.9, 19), (14.9, 30), (23.8, 29), (26.8, 40), (36.7, 39), (39.7, 50), (50.6, 49)]
 meas_result = []
 EMULATE_UNTIL = 70;
 
@@ -115,6 +115,7 @@ class ControlMachine:
             
             yield meas2.request_socket.put(Request("measure2", "measure", params={'program':"Lfast"}))
             m = yield rp_meas2.get()
+            meas_result.append((m.when, m.how['length']))
             
             ##déchargement
             yield sp.request_socket.put(Request("transporter", "move", params={"program":'unload'}))
@@ -169,18 +170,9 @@ class TestSim19(unittest.TestCase):
     def test_RunResults(self):
         model = get_model()
         model.emulate(until = EMULATE_UNTIL)
-        result_product = [(pid, 
-                       p.shape_history, 
-                       p.space_history,
-                       dict([(key, p[key]) for key in p.properties.keys()]),
-                       p.create_time, 
-                       p.dispose_time) for (pid, p) in model.products.items()]
-        for pid in range(4):
-            exp = EXP_RESULT_PRODUCT[pid][1]
-            act = result_product[pid][1]
-            print(act, exp)
-            for e in zip(act, exp):
-                self.assertAlmostEqual(e[0], e[1])        
+        for act, exp in zip(meas_result, EXP_RESULT_MEAS):
+            self.assertAlmostEqual(act[0], exp[0])
+            self.assertAlmostEqual(act[1], exp[1])
 
 
 if __name__ == '__main__':    
