@@ -596,6 +596,13 @@ class Product(object):
         space_history -- history of space transformations
         shape_history -- history of shape transformations
         composition_history -- history of assembling
+
+
+    Product composition:
+    Each product can have an arbitrary number of components. Each is identified
+    by a 'key'. the default key is the empty string. If an assembly is requested
+    with a key already associated with a product, the assembly is done on the 
+    component.
     """
 
     def __init__(self, model, pid=0, product_type='defaultType'):
@@ -648,7 +655,7 @@ class Product(object):
         now = self.model.current_time()
         self.space_history.append((now, space))
         for child in self.components.values():
-            child.space_history.append((now, space))
+            child.record_position(space)
 
     def record_transformation(self, start, end, actuator, program):
         """
@@ -663,7 +670,7 @@ class Product(object):
         """
         self.shape_history.append((start, end, actuator, program))
         for child in self.components.values():
-            child.shape_history.append((start, end, actuator, program))
+            child.record_transformation(start, end, actuator, program)
 
     def dispose(self):
         """
@@ -674,10 +681,12 @@ class Product(object):
             logger.info(_("product {pid} disposed at {time}").format(pid=self.pid,
                                                                      time=self.dispose_time))
             self.__active = False
+            for child in self.components.values():
+                child.dispose()
         else:
             logger.warning(_("""warning, not disposing product {pid} at {time}: not active""").format(pid=self.pid, time=self.model.current_time()))
 
-    def assemble(self, component, actuator, key=None):
+    def assemble(self, component, actuator, key=''):
         """
         Aggregate another product (the 'component') with this one, if parameter
         'key' is specified, it can be used to find back the component (e.g. in
@@ -685,26 +694,38 @@ class Product(object):
         component (first is 0).
         """
         self.composition_history.append((self.model.current_time(), actuator, component.pid))
-        if key is None:
-            key = len(self.components)
-        self.components[key] = component
+        if '.' in key:
+            (head, remain) = key.split('.', 1)
+        else:
+            head = key
+            remain = ''
+        if head not in self.components:
+            self.components[head] = component
+        else:
+            self.components[head].assemble(component, actuator, remain)
 
-    def disassemble(self, key=None):
+    def disassemble(self, key=''):
         """Disagregate a composite product. Return a component by its key. If no
-        key are specified, the componnent with the bigest key is returned (LIFO
-        order)."""
-        #what if a product has no componnents ? split ?
-        if len(self.components) == 0:
-            return self
-        if key is None:
-            #search for the biggest key in dict
-            key = -1
-            for k in self.components.keys():
-                if k > key:
-                    key = k
-        result = self.components[key]
-        del self.components[key]
-        return result
+        key are specified, the component with the bigest key is returned (LIFO
+        order).
+        """
+        if '.' in key:
+            (head, remain) = key.split('.', 1)
+        else:
+            head = key
+            remain = None
+
+        if head not in self.components:
+            # warning, requisted component does *not* exist
+            raise EmulicaError(self.model, _(f"no component named {key} inside product {self.pid}, type {self.product_type}"))
+        component = self.components[head]
+        if remain:
+            # search no finished, recursive call
+            return component.disassemble(remain)
+        else:
+            # TODO: add something in history
+            del self.components[head]
+            return component
 
     def __getitem__(self, name):
         """Provide convenient access to the properties of the module."""
@@ -1659,7 +1680,11 @@ class AssembleAct(Actuator):
             #release resources and record end
             if len(masters) > 1: logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
-                masters[0].assemble(assemblee, module.fullname()) # TODO here, use additionnal parameter
+                if 'key' in program.transform:
+                    key = program.transform['key']
+                    masters[0].assemble(assemblee, module.fullname(), key)
+                else:
+                    masters[0].assemble(assemblee, module.fullname())
                 masters[0].record_transformation(start,
                                                 self.env.now,
                                                 module.fullname(),
@@ -1801,22 +1826,27 @@ class DisassembleAct(Actuator):
                 yield elt
             #release resources and record end
             #get component
-            #key = program.transform['key']
+            
             if len(masters) > 1:
-                logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
+                logger.warning(_("""ignoring products in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
-                component = masters[0].disassemble()
-                #TODO: manage dissassembling key !!
+                if 'key' in program.transform:
+                    component = masters[0].disassemble(program.transform['key'])
+                else:
+                    component = masters[0].disassemble()
             else:
+                component = None
                 logger.warning(_("""ignoring request to disassemble: no product in holder {0}""").format(module.properties['holder'].name))
+                
                 #send an exception ???
             #send component to destination
             dest = program.transform['destination']
             #dest_rq = dest.lock.request()
             logger.debug(_("""requesting destination holder, to put dissassembled product."""))
             #yield dest_rq
-            for ev in dest.put_product(component):
-                yield ev
+            if component:
+                for ev in dest.put_product(component):
+                    yield ev
             #dest.lock.release(dest_rq)
             logger.debug(_("releasing destination holder"))
             #release holer and resource
@@ -2316,7 +2346,7 @@ class MeasurementObserver(Actuator):
                 if product_list.is_first_ready():
                     product = product_list.get_first()
                     # TODO lock product
-                    
+
                     yield self.env.timeout(program.time(product=product))
                     
                     r = Report(module.name,
