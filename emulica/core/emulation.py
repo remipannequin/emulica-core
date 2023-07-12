@@ -539,7 +539,11 @@ class Model(Module):
         """Return a clone of this model"""
         clone = Model()
         
-        
+    def top_level(self):
+        if self.is_main:
+            return self
+        else:
+            return self.model.top_level()
         
 
 class EventMultiplier(object):
@@ -625,9 +629,10 @@ class Product(object):
         while pid == 0 or pid in model.products:
             pid = model.next_pid()
         self.pid = pid
-        self.model = model
-        model.products[pid] = self
-        if model.get_sim():
+        # Get the top level model (i.e. 'main')
+        self.model = model.top_level()
+        self.model.products[pid] = self
+        if self.model.get_sim():
             self.create_time = model.current_time()
         else:
             self.create_time = 0
@@ -737,6 +742,15 @@ class Product(object):
 
     def is_active(self):
         return self.__active
+    
+    def all_components(self):
+        """Return a list of all products that have the current product as ancestor.
+        """
+        result = []
+        for c in self.components.values():
+            result.append(c)
+            result.extend(c.all_components())
+        return result
 
 
 class Request(object):
@@ -2340,7 +2354,10 @@ class MeasurementObserver(Actuator):
                     continue
                 program = module.properties['program_table'][program_name]
                 attr_name = program.transform['property']
-                
+                if 'cascade' in program.transform:
+                    cascade = program.transform['cascade']
+                else:
+                    cascade = False
                 product_list.update_positions()
                 
                 if product_list.is_first_ready():
@@ -2353,8 +2370,25 @@ class MeasurementObserver(Actuator):
                        module['event_name'],
                        location=module['holder'].name,
                        date=module.current_time())
-                    # TODO what if property doesn't exist
-                    r.how[attr_name] = product[attr_name]
+                    # if property doesn't exist: use None
+                    if attr_name in product.properties:
+                        value = product[attr_name]
+                    else:
+                        value = None
+                    # recurse on components
+                    if cascade:
+                        d = {}
+                        
+                        d[product.pid] = value
+                        for comp in product.all_components():
+                            if attr_name in comp.properties:
+                                value = product[attr_name]
+                            else:
+                                value = None
+                            d[comp.pid] = value
+                        r.how[attr_name] = d
+                    else:
+                        r.how[attr_name] = value
                     logger.info(_("t={0}: observation done!").format(now))
                     yield module.report_socket.put(r)
                 else:
