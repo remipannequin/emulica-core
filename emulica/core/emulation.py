@@ -66,7 +66,7 @@ logger = logging.getLogger('emulica.emulation')
 
 # Control utilities
 def wait_idle(report_socket):
-    """This function may be useful in control sytems. It get repetitively Reports
+    """This function may be useful in control systems. It get repetitively Reports
     on the given socket until found a report with what == 'idle'.
 
     Arguments
@@ -76,6 +76,16 @@ def wait_idle(report_socket):
     while not finished:
         event = yield report_socket.get()
         finished = (event.what == 'idle')
+
+def execute(model, name, operation, prog):
+    m = model.modules[name]
+    rp = m.create_report_socket(multiple_observation=True)
+    q = Request(name, operation, params = {'program': prog})
+    yield m.request_socket.put(q)
+    ev = yield rp.get()
+    #print(ev)
+    while ev.what != "idle":
+        ev = yield rp.get()
 
 
 class Module(object):
@@ -132,14 +142,14 @@ class Module(object):
         self.report_socket = None
         self.request_socket = None
     
-    def fullname(self):
+    def fullname(self) -> str:
         """Return the module fully qualified name, of the form
         'submodel1.submodel2.module', or 'module2' or 'submodel1.submodel2'"""
         if self.model.is_main:
             return self.name
         return '.'.join([self.model.fullname(), self.name])
 
-    def is_model(self):
+    def is_model(self) -> bool:
         """Return True if this module is a model.
         NB: Overriden by the is_model implementation of Model, that returns True.
         """
@@ -152,7 +162,7 @@ class Module(object):
         self.accept_observer = True
         self.__multiplier = None
 
-    def rename(self, new_name):
+    def rename(self, new_name: str):
         """Change the module's name.
         Raise:
             EmulicaError -- if the name is already used in the model
@@ -871,6 +881,28 @@ class Report(object):
         return s
 
 
+class Resource(Module):
+    """Object that encapsulate a simpy resource inside a module.
+    Main use case is when executing a program require to request a resource
+    shared amongs other program.  
+    """
+    def __init__(self, model, name):
+        Module.__init__(self, model, name)
+        model.register_emulation_module(self)
+
+    def initialize(self):
+        """Make a module ready to be simulated"""
+        Module.initialize(self)
+        # SimPy resource underlying this
+        self.__resource = simpy.Resource(env=self.get_sim(), capacity=1)
+
+    def request(self):
+        return self.__resource.request()
+    
+    def release(self, request):
+        return self.__resource.release(request)
+
+
 class Actuator(Module):
     """
     Abstract class that is used by every module that act on products.
@@ -1280,6 +1312,12 @@ class SpaceAct(Actuator):
                     #request own resource (to model failure)
                     resource_rq = module.resource.request()
                     yield resource_rq
+                    prog_res_rq = {}
+                    # Request program's resource
+                    for res in module.properties['program_table'][module.program].resources:
+                        rq = res.request()
+                        prog_res_rq[res] = rq
+                        yield rq
                     module.record_begin(module.program)
                     #lock source holder
                     src_lock_rq = source.lock.request()
@@ -1296,8 +1334,8 @@ class SpaceAct(Actuator):
                                     params={'program':module.program},
                                     date=self.env.now)
                     yield module.report_socket.put(report)
-                    #transportation delay
-                    #multiplied by the degradation ration
+                    # transportation delay
+                    # multiplied by the degradation ratio
                     time = module.properties['program_table'][module.program].time(product)
                     time /= module.performance_ratio
                     #hold (with interruption)
@@ -1328,6 +1366,9 @@ class SpaceAct(Actuator):
                     #put product in destination holder
                     for ev in dest.put_product(product):
                         yield ev
+                    #release program's resources
+                    for res, rq in prog_res_rq.items():
+                        res.release(rq)
                     #release own resouce
                     module.resource.release(resource_rq)
                     module.record_end(module.program)
@@ -1471,10 +1512,10 @@ class ShapeAct(Actuator):
                     yield resource_rq
                     #request program's resources
                     #TODO: request a resource allocation lock before, to avoid interlocking
-                    prog_res_rq = []
+                    prog_res_rq = {}
                     for res in module.properties['program_table'][module.program].resources:
                         rq = res.request()
-                        prog_res_rq.append(rq)
+                        prog_res_rq[res] = rq
                         yield rq
                     module.record_begin(module.program)
                     #lock the workplace holder
@@ -1537,8 +1578,8 @@ class ShapeAct(Actuator):
                     #unlock holder
                     module.properties['holder'].lock.release(holder_rq)
                     #release program's resources
-                    for res in module.properties['program_table'][module.program].resources:
-                        res.release(prog_res_rq)
+                    for res, rq in prog_res_rq.items():
+                        res.release(rq)
                     #release own resource, record end
                     module.resource.release(resource_rq)
                     module.record_end(module.program)
