@@ -285,7 +285,7 @@ class Model(Module):
         'module_removed' -- callback(model, module)
     """
 
-    def __init__(self, step=False, model=None, name='main', path=None):
+    def __init__(self, model=None, name='main', path=None, step=False):
         """Initialize the discrete-events simulation core, and activate all modules.
         if it is not specified, seeding is made from system time or from a random source.
 
