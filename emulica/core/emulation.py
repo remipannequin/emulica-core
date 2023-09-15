@@ -237,9 +237,10 @@ class Module(object):
 
     def emit(self, signal, *args):
         """Trigger a signal."""
+        # TODO fix this...
         #to prevent bug when deepcopying modules
-        if not '__listener' in dir(self):
-            return
+        #if not '__listeners' in dir(self):
+        #    return
         for (handler, cb_args) in self.__listeners[signal].items():
             handler(*(args+cb_args))
 
@@ -2404,7 +2405,7 @@ class MeasurementObserver(Actuator):
                 if product_list.is_first_ready():
                     product = product_list.get_first()
                     # TODO lock product
-
+                    module.record_begin(program)
                     yield self.env.timeout(program.time(product=product))
                     
                     r = Report(module.name,
@@ -2431,6 +2432,7 @@ class MeasurementObserver(Actuator):
                     else:
                         r.how[attr_name] = value
                     logger.info(_("t={0}: observation done!").format(now))
+                    module.record_end()
                     yield module.report_socket.put(r)
                 else:
                     logger.warning(f"at t={now}, no product was ready to be observed")
