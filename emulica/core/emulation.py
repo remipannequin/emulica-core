@@ -2405,7 +2405,7 @@ class MeasurementObserver(Actuator):
                 if product_list.is_first_ready():
                     product = product_list.get_first()
                     # TODO lock product
-                    module.record_begin(program)
+                    module.record_begin(program_name)
                     yield self.env.timeout(program.time(product=product))
                     
                     r = Report(module.name,
