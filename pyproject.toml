@@ -1,0 +1,30 @@
+[project]
+name = "emulica"
+version = "1.2.0"
+description = "Emulation of logistic systems"
+authors = [
+    {name = "Rémi Pannequin", email = "remi.pannequin@univ-lorraine.fr"},
+]
+dependencies = [
+    "matplotlib",
+    "simpy>=3.0.0",
+    "twisted",
+]
+requires-python = ">=3.6"
+readme = "README.md"
+license = {text = "GPL-3"}
+classifiers = [
+    "Intended Audience :: Education",
+    "Intended Audience :: Manufacturing",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/remipannequin/emulica-core"
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+

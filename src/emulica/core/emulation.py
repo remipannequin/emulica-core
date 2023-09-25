@@ -66,7 +66,7 @@ logger = logging.getLogger('emulica.emulation')
 
 # Control utilities
 def wait_idle(report_socket):
-    """This function may be useful in control sytems. It get repetitively Reports
+    """This function may be useful in control systems. It get repetitively Reports
     on the given socket until found a report with what == 'idle'.
 
     Arguments
@@ -76,6 +76,16 @@ def wait_idle(report_socket):
     while not finished:
         event = yield report_socket.get()
         finished = (event.what == 'idle')
+
+def execute(model, name, operation, prog):
+    m = model.modules[name]
+    rp = m.create_report_socket(multiple_observation=True)
+    q = Request(name, operation, params = {'program': prog})
+    yield m.request_socket.put(q)
+    ev = yield rp.get()
+    #print(ev)
+    while ev.what != "idle":
+        ev = yield rp.get()
 
 
 class Module(object):
@@ -132,14 +142,14 @@ class Module(object):
         self.report_socket = None
         self.request_socket = None
     
-    def fullname(self):
+    def fullname(self) -> str:
         """Return the module fully qualified name, of the form
         'submodel1.submodel2.module', or 'module2' or 'submodel1.submodel2'"""
         if self.model.is_main:
             return self.name
         return '.'.join([self.model.fullname(), self.name])
 
-    def is_model(self):
+    def is_model(self) -> bool:
         """Return True if this module is a model.
         NB: Overriden by the is_model implementation of Model, that returns True.
         """
@@ -152,7 +162,7 @@ class Module(object):
         self.accept_observer = True
         self.__multiplier = None
 
-    def rename(self, new_name):
+    def rename(self, new_name: str):
         """Change the module's name.
         Raise:
             EmulicaError -- if the name is already used in the model
@@ -227,6 +237,7 @@ class Module(object):
 
     def emit(self, signal, *args):
         """Trigger a signal."""
+        # TODO fix this...
         #to prevent bug when deepcopying modules
         if not '_Module__listeners' in dir(self):
             return
@@ -275,7 +286,7 @@ class Model(Module):
         'module_removed' -- callback(model, module)
     """
 
-    def __init__(self, step=False, model=None, name='main', path=None):
+    def __init__(self, model=None, name='main', path=None, step=False):
         """Initialize the discrete-events simulation core, and activate all modules.
         if it is not specified, seeding is made from system time or from a random source.
 
@@ -539,7 +550,11 @@ class Model(Module):
         """Return a clone of this model"""
         clone = Model()
         
-        
+    def top_level(self):
+        if self.is_main:
+            return self
+        else:
+            return self.model.top_level()
         
 
 class EventMultiplier(object):
@@ -596,6 +611,13 @@ class Product(object):
         space_history -- history of space transformations
         shape_history -- history of shape transformations
         composition_history -- history of assembling
+
+
+    Product composition:
+    Each product can have an arbitrary number of components. Each is identified
+    by a 'key'. the default key is the empty string. If an assembly is requested
+    with a key already associated with a product, the assembly is done on the 
+    component.
     """
 
     def __init__(self, model, pid=0, product_type='defaultType'):
@@ -618,9 +640,10 @@ class Product(object):
         while pid == 0 or pid in model.products:
             pid = model.next_pid()
         self.pid = pid
-        self.model = model
-        model.products[pid] = self
-        if model.get_sim():
+        # Get the top level model (i.e. 'main')
+        self.model = model.top_level()
+        self.model.products[pid] = self
+        if self.model.get_sim():
             self.create_time = model.current_time()
         else:
             self.create_time = 0
@@ -648,7 +671,7 @@ class Product(object):
         now = self.model.current_time()
         self.space_history.append((now, space))
         for child in self.components.values():
-            child.space_history.append((now, space))
+            child.record_position(space)
 
     def record_transformation(self, start, end, actuator, program):
         """
@@ -663,7 +686,7 @@ class Product(object):
         """
         self.shape_history.append((start, end, actuator, program))
         for child in self.components.values():
-            child.shape_history.append((start, end, actuator, program))
+            child.record_transformation(start, end, actuator, program)
 
     def dispose(self):
         """
@@ -674,10 +697,12 @@ class Product(object):
             logger.info(_("product {pid} disposed at {time}").format(pid=self.pid,
                                                                      time=self.dispose_time))
             self.__active = False
+            for child in self.components.values():
+                child.dispose()
         else:
             logger.warning(_("""warning, not disposing product {pid} at {time}: not active""").format(pid=self.pid, time=self.model.current_time()))
 
-    def assemble(self, component, actuator, key=None):
+    def assemble(self, component, actuator, key=''):
         """
         Aggregate another product (the 'component') with this one, if parameter
         'key' is specified, it can be used to find back the component (e.g. in
@@ -685,26 +710,38 @@ class Product(object):
         component (first is 0).
         """
         self.composition_history.append((self.model.current_time(), actuator, component.pid))
-        if key is None:
-            key = len(self.components)
-        self.components[key] = component
+        if '.' in key:
+            (head, remain) = key.split('.', 1)
+        else:
+            head = key
+            remain = ''
+        if head not in self.components:
+            self.components[head] = component
+        else:
+            self.components[head].assemble(component, actuator, remain)
 
-    def disassemble(self, key=None):
+    def disassemble(self, key=''):
         """Disagregate a composite product. Return a component by its key. If no
-        key are specified, the componnent with the bigest key is returned (LIFO
-        order)."""
-        #what if a product has no componnents ? split ?
-        if len(self.components) == 0:
-            return self
-        if key is None:
-            #search for the biggest key in dict
-            key = -1
-            for k in self.components.keys():
-                if k > key:
-                    key = k
-        result = self.components[key]
-        del self.components[key]
-        return result
+        key are specified, the component with the bigest key is returned (LIFO
+        order).
+        """
+        if '.' in key:
+            (head, remain) = key.split('.', 1)
+        else:
+            head = key
+            remain = None
+
+        if head not in self.components:
+            # warning, requisted component does *not* exist
+            raise EmulicaError(self.model, _(f"no component named {key} inside product {self.pid}, type {self.product_type}"))
+        component = self.components[head]
+        if remain:
+            # search no finished, recursive call
+            return component.disassemble(remain)
+        else:
+            # TODO: add something in history
+            del self.components[head]
+            return component
 
     def __getitem__(self, name):
         """Provide convenient access to the properties of the module."""
@@ -716,6 +753,15 @@ class Product(object):
 
     def is_active(self):
         return self.__active
+    
+    def all_components(self):
+        """Return a list of all products that have the current product as ancestor.
+        """
+        result = []
+        for c in self.components.values():
+            result.append(c)
+            result.extend(c.all_components())
+        return result
 
 
 class Request(object):
@@ -834,6 +880,28 @@ class Report(object):
         if opt_param:
             return "{0} ({1})".format(s, ", ".join(opt_param))
         return s
+
+
+class Resource(Module):
+    """Object that encapsulate a simpy resource inside a module.
+    Main use case is when executing a program require to request a resource
+    shared amongs other program.  
+    """
+    def __init__(self, model, name):
+        Module.__init__(self, model, name)
+        model.register_emulation_module(self)
+
+    def initialize(self):
+        """Make a module ready to be simulated"""
+        Module.initialize(self)
+        # SimPy resource underlying this
+        self.__resource = simpy.Resource(env=self.get_sim(), capacity=1)
+
+    def request(self):
+        return self.__resource.request()
+    
+    def release(self, request):
+        return self.__resource.release(request)
 
 
 class Actuator(Module):
@@ -1245,6 +1313,12 @@ class SpaceAct(Actuator):
                     #request own resource (to model failure)
                     resource_rq = module.resource.request()
                     yield resource_rq
+                    prog_res_rq = {}
+                    # Request program's resource
+                    for res in module.properties['program_table'][module.program].resources:
+                        rq = res.request()
+                        prog_res_rq[res] = rq
+                        yield rq
                     module.record_begin(module.program)
                     #lock source holder
                     src_lock_rq = source.lock.request()
@@ -1261,8 +1335,8 @@ class SpaceAct(Actuator):
                                     params={'program':module.program},
                                     date=self.env.now)
                     yield module.report_socket.put(report)
-                    #transportation delay
-                    #multiplied by the degradation ration
+                    # transportation delay
+                    # multiplied by the degradation ratio
                     time = module.properties['program_table'][module.program].time(product)
                     time /= module.performance_ratio
                     #hold (with interruption)
@@ -1293,6 +1367,9 @@ class SpaceAct(Actuator):
                     #put product in destination holder
                     for ev in dest.put_product(product):
                         yield ev
+                    #release program's resources
+                    for res, rq in prog_res_rq.items():
+                        res.release(rq)
                     #release own resouce
                     module.resource.release(resource_rq)
                     module.record_end(module.program)
@@ -1436,10 +1513,10 @@ class ShapeAct(Actuator):
                     yield resource_rq
                     #request program's resources
                     #TODO: request a resource allocation lock before, to avoid interlocking
-                    prog_res_rq = []
+                    prog_res_rq = {}
                     for res in module.properties['program_table'][module.program].resources:
                         rq = res.request()
-                        prog_res_rq.append(rq)
+                        prog_res_rq[res] = rq
                         yield rq
                     module.record_begin(module.program)
                     #lock the workplace holder
@@ -1502,8 +1579,8 @@ class ShapeAct(Actuator):
                     #unlock holder
                     module.properties['holder'].lock.release(holder_rq)
                     #release program's resources
-                    for res in module.properties['program_table'][module.program].resources:
-                        res.release(prog_res_rq)
+                    for res, rq in prog_res_rq.items():
+                        res.release(rq)
                     #release own resource, record end
                     module.resource.release(resource_rq)
                     module.record_end(module.program)
@@ -1533,6 +1610,9 @@ class AssembleAct(Actuator):
     produce_keyword = 'assy'
     program_keyword = [('source', properties.Display(properties.Display.REFERENCE,
                                                      _("Source")))]
+    # TODO: assemble in a holder associated with the product ?
+    # alternatively, use an "assemble keyword" that enable assembled parts to be stored in a
+    # dictionary-like fashion
     request_params = ['program']
 
     def __init__(self, model, name, assy_holder=None):
@@ -1656,7 +1736,11 @@ class AssembleAct(Actuator):
             #release resources and record end
             if len(masters) > 1: logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
-                masters[0].assemble(assemblee, module.fullname())
+                if 'key' in program.transform:
+                    key = program.transform['key']
+                    masters[0].assemble(assemblee, module.fullname(), key)
+                else:
+                    masters[0].assemble(assemblee, module.fullname())
                 masters[0].record_transformation(start,
                                                 self.env.now,
                                                 module.fullname(),
@@ -1798,22 +1882,27 @@ class DisassembleAct(Actuator):
                 yield elt
             #release resources and record end
             #get component
-            #key = program.transform['key']
+            
             if len(masters) > 1:
-                logger.warning(_("""ignoring product in holder {0} other than the first one""").format(module.properties['holder'].name))
+                logger.warning(_("""ignoring products in holder {0} other than the first one""").format(module.properties['holder'].name))
             if len(masters) >= 1:
-                component = masters[0].disassemble()
-                #TODO: manage dissembling key !!
+                if 'key' in program.transform:
+                    component = masters[0].disassemble(program.transform['key'])
+                else:
+                    component = masters[0].disassemble()
             else:
+                component = None
                 logger.warning(_("""ignoring request to disassemble: no product in holder {0}""").format(module.properties['holder'].name))
+                
                 #send an exception ???
             #send component to destination
             dest = program.transform['destination']
             #dest_rq = dest.lock.request()
             logger.debug(_("""requesting destination holder, to put dissassembled product."""))
             #yield dest_rq
-            for ev in dest.put_product(component):
-                yield ev
+            if component:
+                for ev in dest.put_product(component):
+                    yield ev
             #dest.lock.release(dest_rq)
             logger.debug(_("releasing destination holder"))
             #release holer and resource
@@ -2243,8 +2332,117 @@ class PushObserver(Module):
         self.product_list = product_list
 
 
+class MeasurementObserver(Actuator):
+    """Like a PullObserver, a Measurement get the value of a physical attribute.
+    
+    """
+    produce_keyword = 'measure'
+    program_keyword = [('property',
+                         properties.Display(properties.Display.PHYSICAL_PROPERTIES_LIST, _("Properties")))]
+    request_params = ['program']
+        
+
+
+    def __init__(self, model, name, event_name=None, holder=None):
+        """Create e new intance of a PullObserver"""
+        Actuator.__init__(self, model, name)
+        self.properties.add_with_display('event_name',
+                                         properties.Display.VALUE,
+                                         event_name or name,
+                                         ("Event Name"))
+        self.properties.add_with_display('holder',
+                                         properties.Display.REFERENCE,
+                                         holder,
+                                         ("Holder"))
+        self.properties.add_with_display('program_table',
+                                         properties.Display.PROGRAM_TABLE,
+                                         properties.ProgramTable(self.properties,
+                                                                 'program_table',
+                                                                 self.program_keyword),
+                                         ("Program table"))
+        self.model.register_emulation_module(self)
+
+    def initialize(self):
+        """Make a module ready to be simulated"""
+        Module.initialize(self)
+        self.process = self.ModuleProcess(sim=self.get_sim())
+        self.get_sim().process(self.process.run(self))
+
+    class ModuleProcess:
+        def __init__(self, sim):
+            self.env = sim
+
+        def run(self, module):
+            """Process Execution Method"""
+            if module.properties['holder'] is None:
+                #TODO: raise exception
+                logger.error("no holder has been set")
+            product_list = module.properties['holder'].internal
+            while True:
+                logger.debug(_(f"MeasureObserver {module.name} waiting for requests"))
+                request_cmd = yield module.request_socket.get()
+                logger.info(request_cmd)
+                now = module.current_time()
+                if request_cmd.when and request_cmd.when > now:
+                    yield self.env.timeout(request_cmd.when - now)
+                if request_cmd.what != MeasurementObserver.produce_keyword:
+                    logger.warning(f"Measurement observer {module.name} received invalid request to do {request_cmd.what}")
+                    continue
+                if 'program' not in request_cmd.how:
+                    logger.warning(f"no program in request")
+                    continue    
+                program_name = request_cmd.how['program']
+                if program_name not in module.properties['program_table']:
+                    logger.warning(f"program {program_name} not found")
+                    continue
+                program = module.properties['program_table'][program_name]
+                attr_name = program.transform['property']
+                if 'cascade' in program.transform:
+                    cascade = program.transform['cascade']
+                else:
+                    cascade = False
+                product_list.update_positions()
+                
+                if product_list.is_first_ready():
+                    product = product_list.get_first()
+                    # TODO lock product
+                    module.record_begin(program_name)
+                    yield self.env.timeout(program.time(product=product))
+                    
+                    r = Report(module.name,
+                       module['event_name'],
+                       location=module['holder'].name,
+                       date=module.current_time())
+                    # if property doesn't exist: use None
+                    if attr_name in product.properties:
+                        value = product[attr_name]
+                    else:
+                        value = None
+                    # recurse on components
+                    if cascade:
+                        d = {}
+                        
+                        d[product.pid] = value
+                        for comp in product.all_components():
+                            if attr_name in comp.properties:
+                                value = product[attr_name]
+                            else:
+                                value = None
+                            d[comp.pid] = value
+                        r.how[attr_name] = d
+                    else:
+                        r.how[attr_name] = value
+                    logger.info(_("t={0}: observation done!").format(now))
+                    module.record_end()
+                    yield module.report_socket.put(r)
+                else:
+                    logger.warning(f"at t={now}, no product was ready to be observed")
+
+
+
+
 class PullObserver(Module):
-    """This observer is trigerred when a Request is received (action keyword "query").
+    """This observer is trigerred when a Request is received (action keyword "observe").
     So, the control system 'pull' observation events.
 
     Attributes:
