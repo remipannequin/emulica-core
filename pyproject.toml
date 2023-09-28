@@ -1,6 +1,6 @@
 [project]
 name = "emulica"
-version = "1.2.0"
+version = "1.2.1"
 description = "Emulation of logistic systems"
 authors = [
     {name = "Rémi Pannequin", email = "remi.pannequin@univ-lorraine.fr"},
