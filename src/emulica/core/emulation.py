@@ -413,7 +413,9 @@ class Model(Module):
             timer_process = Timer()
             timer_process.sim = self.sim
             self.sim.process(timer_process.run(step, until))
-            self.sim.run(until=until)
+            term_ev = self.sim.any_of((self.root_event,
+                                       self.sim.timeout(until)))
+            self.sim.run(until=term_ev)
         else:
             self.sim.run(until=until)
         for mod in self.modules.values():
@@ -431,6 +433,7 @@ class Model(Module):
             self.sim = simpy.rt.RealtimeEnvironment(factor=factor, strict=False)
         else:
             self.sim = simpy.Environment()
+        self.root_event = self.sim.event()
         #self.sim.initialize()
         #clean products registry
         self.products = dict()
@@ -447,7 +450,8 @@ class Model(Module):
         if not self.is_main:
             raise EmulicaError(self, _("""Submodels cannot use this method. Only the top level model can be executed."""))
         logger.info(_("simulation stopped at t={0}").format(self.sim.now))
-        #TODO: stop simulation
+        # stop simulation
+        self.root_event.succeed()
 
     def next_pid(self):
         """Return the next available product ID (int)"""
