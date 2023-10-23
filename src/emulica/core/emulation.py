@@ -385,7 +385,7 @@ class Model(Module):
             module.properties[prop_name] = "model['{0}']".format(name)
             module.properties.set_auto_eval(prop_name)
 
-    def emulate(self, until, rt=False, callback=lambda: None, step=1, seed=None, rt_factor=1):
+    def emulate(self, until, rt=False, callback=lambda: None, step=1., seed=None, rt_factor=1.):
         """Wrap SimPy simulate method. At the end of the simulation, trace are flushed.
 
         Arguments:
@@ -2189,9 +2189,9 @@ class PushObserver(Module):
         
         def response(self, product_list):
             """Return a list of reports to send"""
-            report = Report(self.observer.name,
+            report = Report(self.observer.fullname(),
                             self.observer.properties['event_name'],
-                            location=self.observer.properties['holder'].name,
+                            location=self.observer.properties['holder'].fullname(),
                             date=self.observer.get_sim().now)
             if self.observer.properties['observe_type']:
                 report.how['productType'] = self.__prod.product_type
@@ -2413,9 +2413,9 @@ class MeasurementObserver(Actuator):
                     module.record_begin(program_name)
                     yield self.env.timeout(program.time(product=product))
                     
-                    r = Report(module.name,
+                    r = Report(module.fullname(),
                        module['event_name'],
-                       location=module['holder'].name,
+                       location=module['holder'].fullname(),
                        date=module.current_time())
                     # if property doesn't exist: use None
                     if attr_name in product.properties:
@@ -2473,9 +2473,9 @@ class PullObserver(Module):
         def response(self, product_list):
             """Return one report that give for each product its ID, type and
              position"""
-            r = Report(self.observer.name,
+            r = Report(self.observer.fullname(),
                        self.observer['event_name'],
-                       location=self.observer['holder'].name,
+                       location=self.observer['holder'].fullname(),
                        date=self.observer.current_time())
             id_by_position = dict()
             type_by_position = dict()

@@ -64,7 +64,7 @@ class TimeControler(threading.Thread):
     
     
     
-    def __init__(self, model, real_time=False, rt_factor=1, until=0, step=-1):
+    def __init__(self, model, real_time=False, rt_factor=1., until=0, step=-1):
         """Create a new instance of a TimeControler
         
         Arguments:
