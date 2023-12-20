@@ -1,13 +1,13 @@
 [project]
 name = "emulica"
-version = "1.2.1"
+version = "1.2.2"
 description = "Emulation of logistic systems"
 authors = [
     {name = "Rémi Pannequin", email = "remi.pannequin@univ-lorraine.fr"},
 ]
 dependencies = [
     "matplotlib",
-    "simpy>=3.0.0",
+    "simpy>4.0.0",
     "twisted",
 ]
 requires-python = ">=3.6"

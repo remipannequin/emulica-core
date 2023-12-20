@@ -158,7 +158,7 @@ class Module(object):
     def initialize(self):
         """Make a module ready to be simulated"""
         self.report_socket = simpy.Store(env=self.get_sim())
-        self.request_socket = simpy.Store(env=self.get_sim())
+        self.request_socket = simpy.FilterStore(env=self.get_sim())
         self.accept_observer = True
         self.__multiplier = None
 
