@@ -16,9 +16,11 @@
 
 
 #if gettext has not been installed, install a fallback in builtins
-import builtins
-if '_' not in dir(builtins):
-    builtins._ = lambda x: x
+#import builtins
+#if '_' not in dir(builtins):
+#    builtins._ = lambda x: x
+import gettext
+gettext.bindtextdomain('emulica', '/path/to/my/language/directory')
 
 import logging
 

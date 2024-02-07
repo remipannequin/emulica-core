@@ -132,7 +132,7 @@ class ControlCell:
 def get_model():
     model = Model()
     
-    submodel = Model(model = model, name = "cell", path = 'cell.emu')
+    submodel = Model(parent = model, name = "cell", path = 'cell.emu')
     source = Holder(submodel, "source")
     sink = Holder(submodel, "sink")
     espaceMachine = Holder(submodel, "espaceMachine")

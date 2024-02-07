@@ -1,6 +1,7 @@
 # -*- Mode: Python; coding: utf-8; indent-tabs-mode: nil; tab-width: 4 -*-
 ### BEGIN LICENSE
-# Copyright (C) 2013 Rémi Pannequin, Centre de Recherche en Automatique de Nancy remi.pannequin@univ-lorraine.fr
+# Copyright (C) 2013 Rémi Pannequin, Centre de Recherche en Automatique de
+# Nancy remi.pannequin@univ-lorraine.fr
 # This program is free software: you can redistribute it and/or modify it 
 # under the terms of the GNU General Public License version 3, as published 
 # by the Free Software Foundation.
@@ -26,6 +27,10 @@ from emulica.core import emulation, properties
 import logging, zipfile, pickle
 
 logger = logging.getLogger('emulica.emuML')
+
+import gettext
+gettext.textdomain('emulica')
+_ = gettext.gettext
 
 class EmuFile(object):
     """This class enable to read or write Emulica files."""
@@ -326,7 +331,7 @@ class EmulationParser(object):
         """
         from xml.etree.ElementTree import fromstring
         self.tree = fromstring(string)
-        self.model = model or emulation.Model(model = parent, name = name, path = path)
+        self.model = model or emulation.Model(parent = parent, name = name, path = path)
         self.submodels = dict()
         mod_root = self.tree.find("modules")
         for submodel_elt in mod_root.findall("submodel"):

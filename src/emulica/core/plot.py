@@ -29,6 +29,9 @@ from matplotlib.backends.backend_pdf import FigureCanvas
 
 logger = logging.getLogger('emulica.plot')
 
+import gettext
+gettext.textdomain('emulica')
+_ = gettext.gettext
 
 class Monitor(object):
     """ Collect time series of values

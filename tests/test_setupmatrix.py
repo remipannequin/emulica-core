@@ -39,8 +39,9 @@ class TestSetupMatrix(unittest.TestCase):
     def setUp(self):
         print(self.id())
         self.model = emulation.Model()
+        self.model.clear()
         self.p = emulation.Product(self.model)
-
+        
     def compare(self, instance, init, final, expRes):
         t = instance.get(init, final)
         self.assertEqual(t, expRes)

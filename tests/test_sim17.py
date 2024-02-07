@@ -131,7 +131,7 @@ class ControlCell:
              
 
 def create_submodel(parent, name, delay):
-    model = Model(model = parent, name = name, path = 'cell.gseme')
+    model = Model(parent = parent, name = name, path = 'cell.gseme')
     source = Holder(model, "source")
     sink = Holder(model, "sink")
     espaceMachine = Holder(model, "espaceMachine")

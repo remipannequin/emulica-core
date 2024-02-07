@@ -26,6 +26,10 @@ from emulica.core import emulation
 
 logger = logging.getLogger('emulica.properties')
 
+import gettext
+gettext.textdomain('emulica')
+_ = gettext.gettext
+
 class Registry(dict):
     """
     Properties can be attached to every products and module (including models).

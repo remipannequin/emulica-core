@@ -38,6 +38,10 @@ ACTIONS = ['start', 'stop', 'resume', 'pause']
 
 logger = logging.getLogger('emulica.controler')
 
+import gettext
+gettext.textdomain('emulica')
+_ = gettext.gettext
+
 class TimeControler(threading.Thread):
     """This class enable to execute a simulation or emulation model in a new thread.
     Time avance mode can be either discrete-events or real-time. In real-time, 
