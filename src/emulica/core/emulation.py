@@ -306,6 +306,7 @@ class Model(Module):
         self.modules = dict()
         self.control_classes = list()
         self.control_system = list()
+        self.control_func = list()
         self.inputs = dict()
         if not self.is_main:
             self.products = model.products
@@ -472,6 +473,11 @@ class Model(Module):
         args = pem_args or (self,)
         self.control_classes.append((control_class, pem_name, args))
 
+    def register_control_function(self, pem, pem_args=None):
+        """Register a process execution method in the model."""
+        args = pem_args or (self,)
+        self.control_func.append((pem, args))
+
     def register_emulation_module(self, module):
         """Register a module in the model. If the module is a (sub)model, call
         apply_input on it.
@@ -526,11 +532,15 @@ class Model(Module):
         #activate control processes
         for (control_class, pem, args) in self.control_classes:
             process = control_class()
-            logger.info(_("registering control process {0}").format(str(process)))
+            logger.info(_("registering control process (class {0})").format(str(process)))
             pem = getattr(process, pem)
             process.sim = self.get_sim()
             self.get_sim().process(pem(*args))
             self.control_system.append(process)
+        for (pem, args) in self.control_func:
+            logger.info(_("registering control process (function {0})").format(str(pem)))
+            self.get_sim().process(pem(*args))
+            self.control_system.append(pem)
 
     def new_report_socket(self):
         return simpy.Store(self.get_sim())
