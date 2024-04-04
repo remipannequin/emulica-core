@@ -7,8 +7,7 @@ authors = [
 ]
 dependencies = [
     "matplotlib",
-    "simpy>4.0.0",
-    "twisted",
+    "simpy>4.0.0"
 ]
 requires-python = ">=3.6"
 readme = "README.md"
@@ -21,6 +20,10 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
 ]
+
+[project.optional-dependencies]
+TCP = ["twisted"]
+Redis = ["redis"]
 
 [project.urls]
 Homepage = "https://github.com/remipannequin/emulica-core"
