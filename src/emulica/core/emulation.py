@@ -871,18 +871,27 @@ class Request(object):
 
 
 class Report(object):
-    """A report give information about an event that has occured in the emulation model
-    It has six attributes: (who, where, why, how, when, what)
+    """A report give information about an event that has occured in the
+    emulation model. It has six attributes: (who, where, why, how, when, what)
 
     Attributes:
         who -- the entity in the model that relates to the event
         what -- the name of the event that has occured
-        how -- a dictionary of parameters that give additionnal information about the event
+        how -- a dictionary of parameters that give additionnal information
+            about the event
         when -- the date at which the event took place
-        where -- the location where the event has been observed (i.e. the same as who in most cases)
+        where -- the location where the event has been observed (i.e. the same
+            as who in most cases)
         why -- a human-readable comment string
     """
-    def __init__(self, source, event, location=None, date=None, comment='', params=None):
+    def __init__(
+            self,
+            source,
+            event,
+            location=None,
+            date=None,
+            comment='',
+            params=None):
         """Create a new instance of a Request
         Arguments:
             source -- the module that emit the report (who)
@@ -918,7 +927,7 @@ class Report(object):
             opt_param.append(_("parameters={0}").format(str(self.how)))
         if self.where:
             opt_param.append(_("location={0}").format(self.where))
-        if self.why != None and self.why:
+        if self.why is not None and self.why:
             opt_param.append(_("comment={0}").format(self.why))
         if opt_param:
             return "{0} ({1})".format(s, ", ".join(opt_param))
@@ -928,7 +937,7 @@ class Report(object):
 class Resource(Module):
     """Object that encapsulate a simpy resource inside a module.
     Main use case is when executing a program require to request a resource
-    shared amongs other program.  
+    shared amongs other program.
     """
     def __init__(self, model, name):
         Module.__init__(self, model, name)
@@ -948,8 +957,8 @@ class Resource(Module):
 
 
 class ModuleProcess(ABC):
-    """Abstract base class from the actual process execution objects, used by all
-    actuators."""
+    """Abstract base class from the actual process execution objects, used by
+    all actuators."""
     def __init__(self, sim):
         self.env = sim
 
@@ -978,16 +987,17 @@ class Actuator(Module):
         self.process_class = module_proc_class
 
     def record_begin(self, state):
-        """Record resource operation as a list of tupples (start, end, program).
-        Program is tre name of the program being executed, or 'setup' or 'failed'
+        """Record resource operation as a list of tupples
+        (start, end, program). Program is the name of the program being
+        executed, or 'setup' or 'failed'
         """
         self.__rec.append((self.model.current_time(), state))
         self.emit(Module.STATE_CHANGE_SIGNAL, state)
 
     def record_end(self, state=None):
-        """Record the end of a state. If the optional parameter state is specified,
-        the first record of this state is ended. If not specified, the first
-        record of the stack is ended"""
+        """Record the end of a state. If the optional parameter state is
+        specified, the first record of this state is ended. If not specified,
+        the first record of the stack is ended"""
         if not len(self.__rec) == 0:
             if state:
                 i = len(self.__rec) - 1
@@ -1028,8 +1038,9 @@ class Actuator(Module):
         """Add a program to the actuator's program_table.
         If the actuator is a createAct or a DisposeAct, that don't have program
         tables, an exception is risen.
-        The parameter prog_resource enable to model that the program require the
-        given resource(s) to be run. By default this parameyter is an empty list
+        The parameter prog_resource enable to model that the program require
+        the given resource(s) to be run. By default this parameyter is an empty
+        list.
         """
         if 'program_table' in self.properties.keys():
             self.properties['program_table'].add_program(name,
@@ -1037,7 +1048,8 @@ class Actuator(Module):
                                                          prog_transform,
                                                          prog_resources)
         else:
-            logger.warning(_("""Can not add programs to actuator without program tables (create and dispose actuators)"""))
+            logger.warning(
+                _("""Can not add programs to actuator without program tables (create and dispose actuators)"""))
 
 
 class EmptyModule(Module):
@@ -1067,9 +1079,10 @@ class EmptyModule(Module):
 
 
 class Failure(Module):
-    """A Failure is a Module that enable to model unavaillablilities of resources.
-    A Failure can either be complete (i.e. the resource is completely bloqued), or
-    partial (i.e. the processing time of the resource is multiplied by a factor).
+    """A Failure is a Module that enable to model unavaillablilities of
+    resources. A Failure can either be complete (i.e. the resource is
+    completely bloqued), or partial (i.e. the processing time of the resource
+    is multiplied by a factor).
 
     Attributes:
 
@@ -1091,13 +1104,20 @@ class Failure(Module):
                                          properties.Display.REFERENCE_LIST,
                                          actuators,
                                          _("Processes"))
-        self.properties.add_with_display('mtbf', properties.Display.EVALUABLE, mtbf, _("MTBF"))
-        self.properties.add_with_display('mttr', properties.Display.EVALUABLE, mttr, _("MTTR"))
-        self.properties.add_with_display('degradation',
-                                         properties.Display.FLOAT,
-                                         0.,
-                                         _("Performance Degradation"))
-        self.properties.add_with_display('repeat', properties.Display.BOOL_VALUE, True, _("Repeat"))
+        self.properties.add_with_display(
+            'mtbf',
+            properties.Display.EVALUABLE, mtbf, _("MTBF"))
+        self.properties.add_with_display(
+            'mttr',
+            properties.Display.EVALUABLE, mttr, _("MTTR"))
+        self.properties.add_with_display(
+            'degradation',
+            properties.Display.FLOAT,
+            0.,
+            _("Performance Degradation"))
+        self.properties.add_with_display(
+            'repeat',
+            properties.Display.BOOL_VALUE, True, _("Repeat"))
         self.model.register_emulation_module(self)
 
     def get_mtbf(self):
@@ -1221,16 +1241,23 @@ class CreateAct(Actuator):
         def run(self, module: 'CreateAct'):
             "Process Execution Method"
             if not module.request_socket and not module.report_socket:
-                raise EmulicaError(module, _("""This module has not be properly initialized"""))
+                raise EmulicaError(
+                    module,
+                    _("""This module has not be properly initialized"""))
             if module.properties['destination'] is None:
-                exp = EmulicaError(module, _("""This module has not be properly initialized: destination has not been set"""))
+                exp = EmulicaError(
+                    module,
+                    _("""This module has not be properly initialized: destination has not been set"""))
                 raise exp
             while True:
-                ## wait for a request to arrive
+                # wait for a request to arrive
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
                 if request_cmd.when and request_cmd.when > now:
+                    # This means that create request are processed in order
+                    # i.e. if request with t=10 is sent before t=5
+                    # they will both be executed at t=10
                     yield self.env.timeout(request_cmd.when - now)
                 if 'productID' in request_cmd.how.keys():
                     pid = request_cmd.how['productID']
@@ -1249,14 +1276,16 @@ class CreateAct(Actuator):
                 if 'physical-properties' in request_cmd.how.keys():
                     for (prop, value) in request_cmd.how['physical-properties'].items():
                         if prop in module.properties['product_prop'].keys():
-                            logger.warning(_("""physical property {0} from create request supersedes property from module""").format(prop))
+                            logger.warning(
+                                _("""physical property {0} from create request supersedes property from module""").format(prop))
                         prod[prop] = value
                 if request_cmd.what == CreateAct.produce_keyword:
                     for ev in module.properties['destination'].put_product(prod):
                         yield ev
                     report = Report(module.fullname(),
                                     'create-done',
-                                    date=self.env.now)
+                                    date=self.env.now,
+                                    params=request_cmd.how)
                     yield module.report_socket.put(report)
 
 
@@ -1290,11 +1319,15 @@ class DisposeAct(Actuator):
         def run(self, module):
             """Process Execution Method"""
             if not module.report_socket or not module.request_socket:
-                raise EmulicaError(module, _("""This module has not be properly initialized"""))
+                raise EmulicaError(
+                    module,
+                    _("""This module has not be properly initialized"""))
             if module.properties['source'] is None:
-                raise EmulicaError(module, _("""This module has not be properly initialized: source has not been set"""))
+                raise EmulicaError(
+                    module,
+                    _("""This module has not be properly initialized: source has not been set"""))
             while True:
-                ## wait for a resquest to arrive
+                # wait for a resquest to arrive
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
@@ -1358,22 +1391,25 @@ class SpaceAct(Actuator):
         def run(self, module: 'SpaceAct'):
             """Process Execution Method"""
             if not module.report_socket or not module.request_socket:
-                raise EmulicaError(module, _("""This module has not be properly initialized"""))
+                raise EmulicaError(
+                    module,
+                    _("""This module has not be properly initialized"""))
             while True:
                 request_cmd = yield module.request_socket.get()
                 logger.info(request_cmd)
                 now = self.env.now
                 if request_cmd.when and request_cmd.when > now:
                     yield self.env.timeout(request_cmd.when - now)
-                ## if requested action is 'setup', perform setup
+                # if requested action is 'setup', perform setup
                 new_program = request_cmd.how['program']
-                if not new_program in module.properties['program_table'].keys():
+                if new_program not in module.properties['program_table'].keys():
                     raise EmulicaError(module,
                                        _("program {0} is not in the program table".format(new_program)))
                 if request_cmd.what == 'setup' or (request_cmd.what == SpaceAct.produce_keyword and module.program != new_program):
                     logger.info(_("module {name} doing setup at {t}").format(name=module.name,
                                                                              t=self.env.now))
                     implicit = (module.program != new_program)
+                    # TODO: replace with yield from statement
                     for yield_elt in self.__setup(new_program, module, implicit):
                         yield yield_elt
                 # if requested action is 'produce', perform setup if needed,
@@ -1403,7 +1439,7 @@ class SpaceAct(Actuator):
                     # report state change
                     report = Report(module.fullname(),
                                     'busy',
-                                    params={'program':module.program},
+                                    params={'program': module.program},
                                     date=self.env.now)
                     yield module.report_socket.put(report)
                     # transportation delay
@@ -1491,9 +1527,10 @@ class ShapeAct(Actuator):
     """
 
     produce_keyword = 'make'
-    program_keyword = [('change',
-                        properties.Display(properties.Display.PHYSICAL_PROPERTIES_LIST,
-                                           _("Physical changes")))]
+    program_keyword = [(
+        'change',
+        properties.Display(properties.Display.PHYSICAL_PROPERTIES_LIST,
+                           _("Physical changes")))]
     request_params = ['program']
 
     def __init__(self, model, name, holder=None):
@@ -1670,9 +1707,10 @@ class ShapeAct(Actuator):
 
 
 class AssembleAct(Actuator):
-    """This module assemble two products : one that is already on its 'assembling holder'
-    and another one that is taken from one other product holders
-    (according to a program parameter 'source')
+    """This module assemble two products : one that is already on its
+    'assembling holder' and another one that is taken from one other product
+    holders (according to a program parameter 'source').
+
     Execution keyword is assemble
 
     Attributes:
@@ -1686,11 +1724,12 @@ class AssembleAct(Actuator):
     """
 
     produce_keyword = 'assy'
-    program_keyword = [('source', properties.Display(properties.Display.REFERENCE,
-                                                     _("Source")))]
+    program_keyword = [(
+        'source',
+        properties.Display(properties.Display.REFERENCE, _("Source")))]
     # TODO: assemble in a holder associated with the product ?
-    # alternatively, use an "assemble keyword" that enable assembled parts to be stored in a
-    # dictionary-like fashion
+    # alternatively, use an "assemble keyword" that enable assembled parts to
+    # be stored in a dictionary-like fashion
     request_params = ['program']
 
     def __init__(self, model, name, assy_holder=None):
@@ -1724,9 +1763,13 @@ class AssembleAct(Actuator):
         def run(self, module: 'AssembleAct'):
             """Process Execution Method"""
             if not module.report_socket or not module.request_socket:
-                raise EmulicaError(module, _("""This module has not be properly initialized"""))
+                raise EmulicaError(
+                    module,
+                    _("""This module has not be properly initialized"""))
             if module.properties['holder'] is None:
-                raise EmulicaError(module, _("""This module has not be properly initialized: holder has not been set"""))
+                raise EmulicaError(
+                    module,
+                    _("""This module has not be properly initialized: holder has not been set"""))
             logger.debug(_("starting assembleAct {0}").format(module.name))
             while True:
                 request_cmd = yield module.request_socket.get()
@@ -1735,7 +1778,7 @@ class AssembleAct(Actuator):
                 if request_cmd.when and request_cmd.when > now:
                     logger.debug(_("""module {name} waiting {time}...""").format(name=module.name, delay=request_cmd.when - now()))
                     yield self.env.timeout(request_cmd.when - now)
-                ## if requested action is 'setup', perform setup
+                # if requested action is 'setup', perform setup
                 if 'program' in request_cmd.how:
                     new_program = request_cmd.how['program']
                 else:
@@ -2384,7 +2427,7 @@ class PushObserver(Module):
                 self.__reactivate_now()
             else:
                 delayed = self.env.now + delay
-                if not delayed in self.reactivate_dates:
+                if delayed not in self.reactivate_dates:
                     self.reactivate_dates.append(delayed)
                     self.env.process(self.__wait_and_reactivate(delay))
                 else:
@@ -2445,8 +2488,11 @@ class MeasurementObserver(Actuator):
 
     """
     produce_keyword = 'measure'
-    program_keyword = [('property',
-                         properties.Display(properties.Display.PHYSICAL_PROPERTIES_LIST, _("Properties")))]
+    program_keyword = [
+        ('property',
+         properties.Display(
+            properties.Display.PHYSICAL_PROPERTIES_LIST,
+            _("Properties")))]
     request_params = ['program']
 
     def __init__(self, model, name, event_name=None, holder=None):
@@ -2667,10 +2713,11 @@ def wait_idle(report_socket: simpy.Store) -> Generator[simpy.Event, Report, None
         event = yield report_socket.get()
         finished = (event.what == 'idle')
 
+
 def execute(model: Model, name: str, operation, prog):
     m = model.modules[name]
     rp = m.create_report_socket(multiple_observation=True)
-    q = Request(name, operation, params = {'program': prog})
+    q = Request(name, operation, params={'program': prog})
     yield m.request_socket.put(q)
     ev = yield rp.get()
     # print(ev)
