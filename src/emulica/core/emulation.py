@@ -1197,7 +1197,7 @@ class CreateAct(Actuator):
                 module.quantity_created += 1
                 module.emit(Module.STATE_CHANGE_SIGNAL, prod_type)
                 prod = Product(module.model, pid, prod_type)
-                #Set physical properties of the product
+                # Set physical properties of the product
                 for (prop, value) in module.properties['product_prop'].items():
                     prod[prop] = value
                 if 'physical-properties' in request_cmd.how.keys():
@@ -1208,7 +1208,10 @@ class CreateAct(Actuator):
                 if request_cmd.what == CreateAct.produce_keyword:
                     for ev in module.properties['destination'].put_product(prod):
                         yield ev
-                    report = Report(module.fullname(), 'create-done', date=self.env.now)
+                    report = Report(module.fullname(),
+                                    'create-done',
+                                    date=self.env.now,
+                                    params=request_cmd.how)
                     yield module.report_socket.put(report)
 
 
@@ -1255,7 +1258,10 @@ class DisposeAct(Actuator):
                     prod = module.properties['source'].fetch_product()
                     prod.dispose()
                     module.properties['source'].lock.release(lock_rq)
-                    report = Report(module.fullname(), 'dispose-done', date=self.env.now)
+                    report = Report(module.fullname(),
+                                    'dispose-done',
+                                    date=self.env.now,
+                                    params=request_cmd.how)
                     yield module.report_socket.put(report)
                     module.emit(Module.STATE_CHANGE_SIGNAL, None)
 
